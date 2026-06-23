@@ -61,3 +61,12 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           projectId: franco-control
           channelId: live
+
+      # Publica las reglas de Firestore en la base con nombre (ai-studio-...).
+      # Va después del hosting para no bloquearlo si faltara permiso en la cuenta de servicio.
+      - name: Deploy Firestore rules
+        if: ${{ env.FIREBASE_SERVICE_ACCOUNT != '' }}
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/gcp-sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/gcp-sa.json"
+          npx --yes firebase-tools deploy --only firestore:rules --project franco-control --non-interactive
