@@ -1,3 +1,10 @@
+## [1.3.1](https://github.com/GabFrank/ritual-caninde/compare/v1.3.0...v1.3.1) (2026-06-23)
+
+
+### Bug Fixes
+
+* **hosting:** no cachear index.html (evita pantalla en blanco por assets viejos) ([#9](https://github.com/GabFrank/ritual-caninde/issues/9)) ([f165dd4](https://github.com/GabFrank/ritual-caninde/commit/f165dd4e484fc9e7aeb49308712c7ab351cd9212))
+
 # [1.3.0](https://github.com/GabFrank/ritual-caninde/compare/v1.2.1...v1.3.0) (2026-06-23)
 
 
