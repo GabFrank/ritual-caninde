@@ -1,3 +1,10 @@
+## [1.3.2](https://github.com/GabFrank/ritual-caninde/compare/v1.3.1...v1.3.2) (2026-06-23)
+
+
+### Bug Fixes
+
+* **ci:** apuntar reglas a la base con nombre usando formato array de firestore ([#10](https://github.com/GabFrank/ritual-caninde/issues/10)) ([3a93234](https://github.com/GabFrank/ritual-caninde/commit/3a932343b9aead9e81f2acc7ea178e2f6b7ac260))
+
 ## [1.3.1](https://github.com/GabFrank/ritual-caninde/compare/v1.3.0...v1.3.1) (2026-06-23)
 
 
