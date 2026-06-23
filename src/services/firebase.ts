@@ -143,26 +143,26 @@ const PRE_CURATED_TEMPLATES = [
     name: "Ceremonia de Medicina Sagrada (Estándar)",
     totalDurationMs: 4 * 60 * 60 * 1000, // 4 Horas
     curve: [
-      { t: 0, energy: 20 },
-      { t: 15, energy: 40 },
-      { t: 30, energy: 60 },
-      { t: 50, energy: 85 },
-      { t: 70, energy: 50 },
-      { t: 85, energy: 30 },
-      { t: 100, energy: 15 }
+      { t: 0, energy: 0.2 },
+      { t: 0.15, energy: 0.4 },
+      { t: 0.3, energy: 0.6 },
+      { t: 0.5, energy: 0.85 },
+      { t: 0.7, energy: 0.5 },
+      { t: 0.85, energy: 0.3 },
+      { t: 1, energy: 0.15 }
     ],
     regions: [
-      { id: "reg-1", name: "Apertura del Altar", startT: 0, endT: 20, targets: [] },
-      { id: "reg-2", name: "Trance Profundo", startT: 20, endT: 45, targets: [] },
-      { id: "reg-3", name: "Elevación de Energía - Fuego", startT: 45, endT: 70, targets: [] },
-      { id: "reg-4", name: "Integración y Rezando", startT: 70, endT: 100, targets: [] }
+      { id: "reg-1", name: "Apertura del Altar", startT: 0, endT: 0.2, targets: [] },
+      { id: "reg-2", name: "Trance Profundo", startT: 0.2, endT: 0.45, targets: [] },
+      { id: "reg-3", name: "Elevación de Energía - Fuego", startT: 0.45, endT: 0.7, targets: [] },
+      { id: "reg-4", name: "Integración y Rezando", startT: 0.7, endT: 1, targets: [] }
     ],
     anchors: [],
     silences: [
-      { id: "sil-1", t: 45, durationMs: 5 * 60 * 1000 }, // 5 mins de silencio antes del climax
-      { id: "sil-2", t: 70, durationMs: 10 * 60 * 1000 } // 10 mins tras la bajada
+      { id: "sil-1", t: 0.45, durationMs: 5 * 60 * 1000 }, // 5 mins de silencio antes del climax
+      { id: "sil-2", t: 0.7, durationMs: 10 * 60 * 1000 } // 10 mins tras la bajada
     ],
-    ambient: { enabled: true, baseVolume: 35 }
+    ambient: { enabled: true, baseVolume: 0.35 }
   }
 ];
 
@@ -219,16 +219,16 @@ export async function seedUserDataIfNeeded(userId: string): Promise<void> {
       const targets: any[] = [];
       if (index === 0) {
         const emId = createdEmotionsMap["Apertura / Expansión"];
-        if (emId) targets.push({ defId: emId, weight: 80, min: 6, max: 10 });
+        if (emId) targets.push({ defId: emId, weight: 0.8, min: 6, max: 10 });
       } else if (index === 1) {
         const emId = createdEmotionsMap["Profundidad / Introspección"];
-        if (emId) targets.push({ defId: emId, weight: 90, min: 7, max: 10 });
+        if (emId) targets.push({ defId: emId, weight: 0.9, min: 7, max: 10 });
       } else if (index === 2) {
         const emId = createdEmotionsMap["Poder / Fuego"];
-        if (emId) targets.push({ defId: emId, weight: 95, min: 8, max: 10 });
+        if (emId) targets.push({ defId: emId, weight: 0.95, min: 8, max: 10 });
       } else if (index === 3) {
         const emId = createdEmotionsMap["Integración / Paz"];
-        if (emId) targets.push({ defId: emId, weight: 90, min: 6, max: 10 });
+        if (emId) targets.push({ defId: emId, weight: 0.9, min: 6, max: 10 });
       }
       return { ...reg, targets };
     });

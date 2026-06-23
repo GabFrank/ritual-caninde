@@ -1,123 +1,40 @@
-// Puente entre el modelo de UI (src/types.ts) y el núcleo puro (src/ritual-core).
+// Puente entre la app y el núcleo puro (src/ritual-core).
 //
-// La UI trabaja con escalas 0..100 (curva, regiones, anclas, volumen) y un `placement`
-// numérico, mientras el núcleo usa 0..1 y un `AnchorPlacement` estructurado. Acá se
-// convierte en el LÍMITE: justo antes de generar/validar. Lo persistido sigue en el
-// modelo de UI; el núcleo nunca toca Firestore ni viceversa.
+// Tras migrar el modelo de la app a la escala del núcleo (todo en 0..1, mismas formas),
+// los tipos de la app son un superset estructural de los del núcleo, así que las
+// entidades se pasan DIRECTO a generate()/validateTemplate() sin conversión de escala.
 //
-// (Fase 4 podrá migrar el editor a las escalas del núcleo y achicar este puente.)
+// Sólo queda un mapeo de salida: la GeneratedSequence del núcleo (startMs/durationMs/
+// kind/trackId) se traduce al modelo de timeline de la UI (tiempos absolutos, track
+// hidratado, nombres) para la pantalla Reproducir.
 
 import {
   generate,
   validateTemplate,
   makeId,
   type ValidationResult,
-  type RitualTemplate as CoreTemplate,
-  type Track as CoreTrack,
-  type AttributeDefinition as CoreAttribute,
-  type AttributeTarget as CoreTarget,
 } from '../ritual-core';
 import type {
   AttributeDefinition,
   GeneratedSequence,
-  RegionTarget,
   RitualTemplate,
   SequenceElement,
   Track,
 } from '../types';
 
 const clamp01 = (n: number): number => Math.max(0, Math.min(1, n));
-const pct = (n: number): number => clamp01((n ?? 0) / 100);
-
-// ---------------------------------------------------------------------------
-// UI → núcleo
-// ---------------------------------------------------------------------------
-
-export function toCoreAttribute(a: AttributeDefinition): CoreAttribute {
-  return {
-    id: a.id,
-    name: a.name,
-    color: a.color,
-    kind: a.kind,
-    options: a.options,
-    min: a.min,
-    max: a.max,
-    builtIn: a.builtIn,
-  };
-}
-
-export function toCoreTrack(t: Track): CoreTrack {
-  return {
-    id: t.id,
-    title: t.title,
-    artist: t.artist,
-    durationMs: t.durationMs,
-    tags: t.tags.map((tag) => ({ defId: tag.defId, value: tag.value })),
-    source: { provider: t.source.provider, externalId: t.source.externalId, uri: t.source.uri },
-    audioMeta: t.audioMeta,
-  };
-}
-
-function toCoreTarget(target: RegionTarget): CoreTarget {
-  return {
-    defId: target.defId,
-    // En la UI el peso es 0..100; el núcleo lo pondera en 0..1.
-    weight: pct(target.weight),
-    // min/max son intensidades (1..10): NO se normalizan.
-    min: target.min,
-    max: target.max,
-    equals: target.equals,
-  };
-}
-
-export function toCoreTemplate(tmpl: RitualTemplate): CoreTemplate {
-  return {
-    id: tmpl.id,
-    name: tmpl.name,
-    totalDurationMs: tmpl.totalDurationMs,
-    curve: tmpl.curve.map((p) => ({ t: pct(p.t), energy: pct(p.energy) })),
-    regions: tmpl.regions.map((r) => ({
-      id: r.id,
-      name: r.name,
-      startT: pct(r.startT),
-      endT: pct(r.endT),
-      targets: r.targets.map(toCoreTarget),
-    })),
-    anchors: tmpl.anchors.map((a) => ({
-      id: a.id,
-      trackId: a.trackId,
-      // 'time' usa escala UI (0..100 → 0..1); 'region'/'anywhere' pasan tal cual.
-      placement:
-        a.placement.type === 'time'
-          ? { type: 'time' as const, t: pct(a.placement.t) }
-          : a.placement,
-    })),
-    silences: tmpl.silences.map((s) => ({ id: s.id, t: pct(s.t), durationMs: s.durationMs })),
-    ambient: tmpl.ambient
-      ? {
-          enabled: tmpl.ambient.enabled,
-          trackId: tmpl.ambient.trackId,
-          baseVolume: pct(tmpl.ambient.baseVolume),
-        }
-      : undefined,
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Validación (antes de persistir una plantilla)
 // ---------------------------------------------------------------------------
 
-/** Valida una plantilla de UI con el validador del núcleo (chequea refs si se pasan). */
+/** Valida una plantilla con el validador del núcleo (chequea refs si se pasan). */
 export function validateAppTemplate(
   template: RitualTemplate,
   tracks?: Track[],
   attributes?: AttributeDefinition[],
 ): ValidationResult {
-  return validateTemplate(
-    toCoreTemplate(template),
-    tracks?.map(toCoreTrack),
-    attributes?.map(toCoreAttribute),
-  );
+  return validateTemplate(template, tracks, attributes);
 }
 
 // ---------------------------------------------------------------------------
@@ -132,7 +49,7 @@ export interface DraftOptions {
 
 /**
  * Genera el BORRADOR editable usando el motor real del núcleo y lo devuelve en el
- * modelo de UI (con tracks hidratados y tiempos absolutos) para la timeline.
+ * modelo de timeline de la UI (con tracks hidratados y tiempos absolutos).
  */
 export function generateDraft(
   template: RitualTemplate,
@@ -140,12 +57,10 @@ export function generateDraft(
   attributes: AttributeDefinition[],
   options: DraftOptions,
 ): GeneratedSequence {
-  const core = generate(
-    toCoreTemplate(template),
-    tracks.map(toCoreTrack),
-    attributes.map(toCoreAttribute),
-    { seed: options.seed, temperature: clamp01(options.variability / 100) },
-  );
+  const core = generate(template, tracks, attributes, {
+    seed: options.seed,
+    temperature: clamp01(options.variability / 100),
+  });
 
   const byId = new Map(tracks.map((t) => [t.id, t]));
 

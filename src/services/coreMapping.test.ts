@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateDraft, validateAppTemplate, toCoreTemplate } from './coreMapping';
+import { generateDraft, validateAppTemplate } from './coreMapping';
 import type { AttributeDefinition, Track, RitualTemplate } from '../types';
 
 const attrs: AttributeDefinition[] = [
@@ -14,34 +14,21 @@ const tracks: Track[] = [
   { id: 't4', title: 'Cierre', durationMs: 300000, tags: [{ defId: 'calm', value: 9 }], source: { provider: 'youtube', externalId: 'd' }, ownerId: 'u1' },
 ];
 
+// Plantilla en la escala del núcleo (todo en 0..1).
 const template: RitualTemplate = {
   id: 'tmpl1',
   name: 'Viaje',
   totalDurationMs: 60 * 60 * 1000, // 1h
-  curve: [{ t: 0, energy: 20 }, { t: 50, energy: 90 }, { t: 100, energy: 20 }],
+  curve: [{ t: 0, energy: 0.2 }, { t: 0.5, energy: 0.9 }, { t: 1, energy: 0.2 }],
   regions: [
-    { id: 'r1', name: 'Apertura', startT: 0, endT: 50, targets: [{ defId: 'calm', weight: 80, min: 6, max: 10 }] },
-    { id: 'r2', name: 'Pico', startT: 50, endT: 100, targets: [{ defId: 'energy', weight: 90, min: 7, max: 10 }] },
+    { id: 'r1', name: 'Apertura', startT: 0, endT: 0.5, targets: [{ defId: 'calm', weight: 0.8, min: 6, max: 10 }] },
+    { id: 'r2', name: 'Pico', startT: 0.5, endT: 1, targets: [{ defId: 'energy', weight: 0.9, min: 7, max: 10 }] },
   ],
   anchors: [],
-  silences: [{ id: 's1', t: 50, durationMs: 5 * 60 * 1000 }],
-  ambient: { enabled: true, baseVolume: 35 },
+  silences: [{ id: 's1', t: 0.5, durationMs: 5 * 60 * 1000 }],
+  ambient: { enabled: true, baseVolume: 0.35 },
   ownerId: 'u1',
 };
-
-describe('coreMapping — escalas UI (0..100) → núcleo (0..1)', () => {
-  it('normaliza curva, regiones, silencios, ambiente y peso de targets', () => {
-    const core = toCoreTemplate(template);
-    expect(core.curve).toEqual([{ t: 0, energy: 0.2 }, { t: 0.5, energy: 0.9 }, { t: 1, energy: 0.2 }]);
-    expect(core.regions[0].startT).toBe(0);
-    expect(core.regions[0].endT).toBe(0.5);
-    expect(core.regions[0].targets[0].weight).toBeCloseTo(0.8);
-    // min/max son intensidades 1..10: NO se normalizan.
-    expect(core.regions[0].targets[0].min).toBe(6);
-    expect(core.silences[0].t).toBe(0.5);
-    expect(core.ambient?.baseVolume).toBeCloseTo(0.35);
-  });
-});
 
 describe('generateDraft — usa el generate() real y devuelve modelo de UI', () => {
   it('produce un borrador editable con tiempos absolutos y reproducible por semilla', () => {
@@ -67,43 +54,37 @@ describe('validateAppTemplate — gatea el guardado', () => {
   it('rechaza una región invertida (startT >= endT)', () => {
     const bad: RitualTemplate = {
       ...template,
-      regions: [{ id: 'r1', startT: 80, endT: 20, targets: [] }],
+      regions: [{ id: 'r1', startT: 0.8, endT: 0.2, targets: [] }],
     };
     const res = validateAppTemplate(bad, tracks, attrs);
     expect(res.ok).toBe(false);
     expect(res.errors.length).toBeGreaterThan(0);
   });
 
+  it('rechaza una curva fuera de 0..1', () => {
+    const bad: RitualTemplate = {
+      ...template,
+      curve: [{ t: 0, energy: 20 }, { t: 1, energy: 0.2 }],
+    };
+    expect(validateAppTemplate(bad, tracks, attrs).ok).toBe(false);
+  });
+
   it('marca error si un ancla referencia un track inexistente', () => {
     const bad: RitualTemplate = {
       ...template,
-      anchors: [{ id: 'anc1', trackId: 'NO_EXISTE', placement: { type: 'time', t: 30 } }],
+      anchors: [{ id: 'anc1', trackId: 'NO_EXISTE', placement: { type: 'time', t: 0.3 } }],
     };
-    const res = validateAppTemplate(bad, tracks, attrs);
-    expect(res.ok).toBe(false);
+    expect(validateAppTemplate(bad, tracks, attrs).ok).toBe(false);
   });
-});
 
-describe('coreMapping — placement de anclas (UI → núcleo)', () => {
-  it("traduce 'time' a 0..1 y pasa 'region'/'anywhere' tal cual", () => {
+  it('acepta anclas con placement por tiempo y por región', () => {
     const withAnchors: RitualTemplate = {
       ...template,
       anchors: [
-        { id: 'a1', trackId: 't1', placement: { type: 'time', t: 40 } },
+        { id: 'a1', trackId: 't1', placement: { type: 'time', t: 0.4 } },
         { id: 'a2', trackId: 't2', placement: { type: 'region', regionId: 'r2', position: 'end' } },
         { id: 'a3', trackId: 't3', placement: { type: 'anywhere' } },
       ],
-    };
-    const core = toCoreTemplate(withAnchors);
-    expect(core.anchors[0].placement).toEqual({ type: 'time', t: 0.4 });
-    expect(core.anchors[1].placement).toEqual({ type: 'region', regionId: 'r2', position: 'end' });
-    expect(core.anchors[2].placement).toEqual({ type: 'anywhere' });
-  });
-
-  it('acepta una plantilla con un ancla por región válida', () => {
-    const withAnchors: RitualTemplate = {
-      ...template,
-      anchors: [{ id: 'a2', trackId: 't2', placement: { type: 'region', regionId: 'r2', position: 'end' } }],
     };
     expect(validateAppTemplate(withAnchors, tracks, attrs).ok).toBe(true);
   });

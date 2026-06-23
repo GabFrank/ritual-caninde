@@ -29,14 +29,14 @@ export default function TemplateEditor({ template, attributes, tracks, onBack, o
   const [name, setName] = useState(template.name || '');
   const [hours, setHours] = useState(Math.floor((template.totalDurationMs || 7200000) / 3600000));
   const [minutes, setMinutes] = useState(Math.round(((template.totalDurationMs || 7200000) % 3600000) / 60000));
-  const [curve, setCurve] = useState<CurvePoint[]>(template.curve || [{ t: 0, energy: 20 }, { t: 100, energy: 20 }]);
+  const [curve, setCurve] = useState<CurvePoint[]>(template.curve || [{ t: 0, energy: 0.2 }, { t: 1, energy: 0.2 }]);
   const [regions, setRegions] = useState<Region[]>(template.regions || []);
   const [anchors, setAnchors] = useState<Anchor[]>(template.anchors || []);
   const [silences, setSilences] = useState<Silence[]>(template.silences || []);
   const [ambient, setAmbient] = useState({
     enabled: template.ambient?.enabled || false,
     trackId: template.ambient?.trackId || '',
-    baseVolume: template.ambient?.baseVolume || 35
+    baseVolume: template.ambient?.baseVolume ?? 0.35
   });
 
   // State to expand/collapse regions or edit target sliders
@@ -87,8 +87,8 @@ export default function TemplateEditor({ template, attributes, tracks, onBack, o
   // ----------------------------------------------------
   const handleAddRegion = () => {
     const id = `reg-${Date.now()}`;
-    const startingTime = regions.length > 0 ? Math.min(95, regions[regions.length - 1].endT) : 0;
-    const endingTime = Math.min(100, startingTime + 20);
+    const startingTime = regions.length > 0 ? Math.min(0.95, regions[regions.length - 1].endT) : 0;
+    const endingTime = Math.min(1, startingTime + 0.2);
 
     const newRegion: Region = {
       id,
@@ -121,7 +121,7 @@ export default function TemplateEditor({ template, attributes, tracks, onBack, o
       
       return {
         ...r,
-        targets: [...r.targets, { defId, weight: 80, min: 5, max: 10 }]
+        targets: [...r.targets, { defId, weight: 0.8, min: 5, max: 10 }]
       };
     }));
   };
@@ -152,7 +152,7 @@ export default function TemplateEditor({ template, attributes, tracks, onBack, o
   const handleAddSilence = () => {
     const newSilence: Silence = {
       id: `sil-${Date.now()}`,
-      t: 50, // midpoint
+      t: 0.5, // midpoint
       durationMs: 5 * 60 * 1000 // 5 mins
     };
     setSilences([...silences, newSilence]);
@@ -174,7 +174,7 @@ export default function TemplateEditor({ template, attributes, tracks, onBack, o
     const newAnchor: Anchor = {
       id: `anc-${Date.now()}`,
       trackId: tracks[0].id,
-      placement: { type: 'time', t: 30 }
+      placement: { type: 'time', t: 0.3 }
     };
     setAnchors([...anchors, newAnchor]);
   };
@@ -185,7 +185,7 @@ export default function TemplateEditor({ template, attributes, tracks, onBack, o
 
   const handleChangeAnchorPlacementType = (id: string, type: AnchorPlacement['type']) => {
     let placement: AnchorPlacement;
-    if (type === 'time') placement = { type: 'time', t: 30 };
+    if (type === 'time') placement = { type: 'time', t: 0.3 };
     else if (type === 'region') placement = { type: 'region', regionId: regions[0]?.id || '', position: 'any' };
     else placement = { type: 'anywhere' };
     handleUpdateAnchor(id, { placement });
@@ -364,13 +364,13 @@ export default function TemplateEditor({ template, attributes, tracks, onBack, o
                   {silences.map((sil) => (
                     <div key={sil.id} className="flex items-center gap-2 bg-zinc-950 p-2 rounded-lg border border-zinc-800" id={`silence-row-${sil.id}`}>
                       {/* t position */}
-                      <span className="text-[10px] text-zinc-500 font-mono w-10 shrink-0">Rel {sil.t}%</span>
+                      <span className="text-[10px] text-zinc-500 font-mono w-10 shrink-0">Rel {Math.round(sil.t * 100)}%</span>
                       <input
                         type="range"
                         min="1"
                         max="99"
-                        value={sil.t}
-                        onChange={(e) => handleUpdateSilence(sil.id, { t: parseInt(e.target.value, 10) })}
+                        value={Math.round(sil.t * 100)}
+                        onChange={(e) => handleUpdateSilence(sil.id, { t: (parseInt(e.target.value, 10) || 0) / 100 })}
                         className="flex-1 accent-violet-600 h-1 bg-zinc-800 rounded"
                         id={`silence-slider-${sil.id}`}
                       />
@@ -443,14 +443,14 @@ export default function TemplateEditor({ template, attributes, tracks, onBack, o
                   <div>
                     <div className="flex justify-between text-[10px] text-zinc-400 mb-1">
                       <span>Volumen de Fondo</span>
-                      <span className="font-mono">{ambient.baseVolume}%</span>
+                      <span className="font-mono">{Math.round(ambient.baseVolume * 100)}%</span>
                     </div>
                     <input
                       type="range"
                       min="5"
                       max="100"
-                      value={ambient.baseVolume}
-                      onChange={(e) => setAmbient({ ...ambient, baseVolume: parseInt(e.target.value, 15) || 50 })}
+                      value={Math.round(ambient.baseVolume * 100)}
+                      onChange={(e) => setAmbient({ ...ambient, baseVolume: (parseInt(e.target.value, 10) || 50) / 100 })}
                       className="w-full accent-violet-600 h-1 bg-zinc-800 rounded"
                     />
                   </div>
@@ -526,14 +526,14 @@ export default function TemplateEditor({ template, attributes, tracks, onBack, o
                           <div>
                             <div className="flex justify-between text-[8px] font-semibold text-zinc-500 uppercase mb-0.5">
                               <span>Posición</span>
-                              <span className="font-mono text-violet-400">{anc.placement.t}%</span>
+                              <span className="font-mono text-violet-400">{Math.round(anc.placement.t * 100)}%</span>
                             </div>
                             <input
                               type="range"
                               min="0"
                               max="100"
-                              value={anc.placement.t}
-                              onChange={(e) => handleUpdateAnchor(anc.id, { placement: { type: 'time', t: parseInt(e.target.value, 10) } })}
+                              value={Math.round(anc.placement.t * 100)}
+                              onChange={(e) => handleUpdateAnchor(anc.id, { placement: { type: 'time', t: (parseInt(e.target.value, 10) || 0) / 100 } })}
                               className="w-full accent-violet-600 h-1 bg-zinc-800 rounded"
                               id={`anchor-slider-${anc.id}`}
                             />
@@ -642,7 +642,7 @@ export default function TemplateEditor({ template, attributes, tracks, onBack, o
                           />
                           <div className="flex items-center gap-1.5 text-[9px] text-zinc-500 mt-0.5">
                             <Clock size={10} />
-                            <span>Intervalo: {reg.startT}% - {reg.endT}% de la Duración</span>
+                            <span>Intervalo: {Math.round(reg.startT * 100)}% - {Math.round(reg.endT * 100)}% de la Duración</span>
                           </div>
                         </div>
 
@@ -671,9 +671,9 @@ export default function TemplateEditor({ template, attributes, tracks, onBack, o
                                   id={`region-start-${reg.id}`}
                                   type="number"
                                   min="0"
-                                  max={reg.endT - 1}
-                                  value={reg.startT}
-                                  onChange={(e) => handleUpdateRegion(reg.id, { startT: Math.max(0, Math.min(reg.endT - 1, parseInt(e.target.value, 10) || 0)) })}
+                                  max={Math.round(reg.endT * 100) - 1}
+                                  value={Math.round(reg.startT * 100)}
+                                  onChange={(e) => handleUpdateRegion(reg.id, { startT: Math.max(0, Math.min(Math.round(reg.endT * 100) - 1, parseInt(e.target.value, 10) || 0)) / 100 })}
                                   className="w-full bg-zinc-900 border border-zinc-800 text-[10.5px] font-mono text-zinc-300 rounded px-2 py-1"
                                 />
                               </div>
@@ -682,10 +682,10 @@ export default function TemplateEditor({ template, attributes, tracks, onBack, o
                                 <input
                                   id={`region-end-${reg.id}`}
                                   type="number"
-                                  min={reg.startT + 1}
+                                  min={Math.round(reg.startT * 100) + 1}
                                   max="100"
-                                  value={reg.endT}
-                                  onChange={(e) => handleUpdateRegion(reg.id, { endT: Math.max(reg.startT + 1, Math.min(100, parseInt(e.target.value, 10) || 100)) })}
+                                  value={Math.round(reg.endT * 100)}
+                                  onChange={(e) => handleUpdateRegion(reg.id, { endT: Math.max(Math.round(reg.startT * 100) + 1, Math.min(100, parseInt(e.target.value, 10) || 100)) / 100 })}
                                   className="w-full bg-zinc-900 border border-zinc-800 text-[10.5px] font-mono text-zinc-300 rounded px-2 py-1"
                                 />
                               </div>

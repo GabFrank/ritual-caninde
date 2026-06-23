@@ -276,14 +276,14 @@ export default function App() {
       name: '',
       totalDurationMs: 2 * 60 * 60 * 1000, // 2 Hours
       curve: [
-        { t: 0, energy: 20 },
-        { t: 50, energy: 60 },
-        { t: 100, energy: 20 }
+        { t: 0, energy: 0.2 },
+        { t: 0.5, energy: 0.6 },
+        { t: 1, energy: 0.2 }
       ],
       regions: [
-        { id: `reg-init`, name: "Espacio Inicial", startT: 0, endT: 40, targets: [] },
-        { id: `reg-climax`, name: "Climax Ceremonial", startT: 40, endT: 80, targets: [] },
-        { id: `reg-end`, name: "Integración", startT: 80, endT: 100, targets: [] }
+        { id: `reg-init`, name: "Espacio Inicial", startT: 0, endT: 0.4, targets: [] },
+        { id: `reg-climax`, name: "Climax Ceremonial", startT: 0.4, endT: 0.8, targets: [] },
+        { id: `reg-end`, name: "Integración", startT: 0.8, endT: 1, targets: [] }
       ],
       anchors: [],
       silences: [],
