@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Track, AttributeDefinition, TrackTag, TrackSource } from '../types';
-import { X, Music, AlertTriangle } from 'lucide-react';
+import { Track, AttributeDefinition, TrackTag } from '../types';
+import { X, Music, AlertTriangle, Link2, CheckCircle2, Loader2 } from 'lucide-react';
+import { parseSourceUrl, fetchSourceMeta, describeKind, type ParsedSource } from '../services/sourceUrl';
 
 interface TrackDialogProps {
   isOpen: boolean;
@@ -38,7 +39,14 @@ export default function TrackDialog({ isOpen, onClose, attributes, onSave, track
   const [durationString, setDurationString] = useState('5:00');
   const [provider, setProvider] = useState<'spotify' | 'youtube' | 'local'>('spotify');
   const [externalId, setExternalId] = useState('');
-  
+  const [sourceUri, setSourceUri] = useState<string | undefined>(undefined);
+
+  // Pegar-URL: detección de fuente + autocompletado.
+  const [urlInput, setUrlInput] = useState('');
+  const [parsed, setParsed] = useState<ParsedSource | null>(null);
+  const [urlTouched, setUrlTouched] = useState(false);
+  const [fetchingMeta, setFetchingMeta] = useState(false);
+
   // Track tags state mapped as: { [defId]: value }
   const [tagMap, setTagMap] = useState<Record<string, string | number | boolean>>({});
 
@@ -49,7 +57,11 @@ export default function TrackDialog({ isOpen, onClose, attributes, onSave, track
       setDurationString(msToMSS(track.durationMs));
       setProvider(track.source?.provider || 'spotify');
       setExternalId(track.source?.externalId || '');
-      
+      setSourceUri(track.source?.uri);
+      setUrlInput('');
+      setParsed(null);
+      setUrlTouched(false);
+
       // Load current tags
       const currentTags: Record<string, string | number | boolean> = {};
       track.tags.forEach(t => {
@@ -62,7 +74,11 @@ export default function TrackDialog({ isOpen, onClose, attributes, onSave, track
       setDurationString('5:00');
       setProvider('spotify');
       setExternalId('');
-      
+      setSourceUri(undefined);
+      setUrlInput('');
+      setParsed(null);
+      setUrlTouched(false);
+
       // Setup initial tag maps
       const initialTags: Record<string, string | number | boolean> = {};
       attributes.forEach(attr => {
@@ -79,6 +95,30 @@ export default function TrackDialog({ isOpen, onClose, attributes, onSave, track
   }, [track, isOpen, attributes]);
 
   if (!isOpen) return null;
+
+  // Pegar URL → detecta plataforma + ID y, best-effort, autocompleta título/artista.
+  const handleUrlChange = (value: string) => {
+    setUrlInput(value);
+    setUrlTouched(value.trim().length > 0);
+    const result = parseSourceUrl(value);
+    setParsed(result);
+    if (!result) return;
+
+    setProvider(result.provider);
+    setExternalId(result.externalId);
+    setSourceUri(result.uri);
+
+    // Metadatos opcionales vía oEmbed (puede fallar por CORS): no bloquea nada.
+    setFetchingMeta(true);
+    fetchSourceMeta(result)
+      .then((meta) => {
+        // Sólo rellena campos que el usuario aún no escribió.
+        setTitle((prev) => prev.trim() || meta.title?.trim() || prev);
+        if (meta.artist) setArtist((prev) => prev.trim() || meta.artist!.trim());
+      })
+      .catch(() => { /* sin metadatos: quedan plataforma + ID */ })
+      .finally(() => setFetchingMeta(false));
+  };
 
   const handleTagChange = (defId: string, value: string | number | boolean) => {
     setTagMap(prev => ({
@@ -111,7 +151,8 @@ export default function TrackDialog({ isOpen, onClose, attributes, onSave, track
       durationMs,
       source: {
         provider,
-        externalId: externalId.trim() || `id_${Date.now()}`
+        externalId: externalId.trim() || `id_${Date.now()}`,
+        ...(sourceUri ? { uri: sourceUri } : {})
       },
       tags,
       audioMeta: defaultMeta
@@ -141,7 +182,49 @@ export default function TrackDialog({ isOpen, onClose, attributes, onSave, track
           {/* COLUMNA 1: Datos de Origen y Reproductor */}
           <div className="space-y-4">
             <h4 className="text-sm border-b border-zinc-800 pb-1 font-medium text-violet-400 uppercase tracking-wider">Identificación y Enlace</h4>
-            
+
+            {/* Pegar URL (Spotify / YouTube) → autocompleta plataforma + ID */}
+            <div>
+              <label className="block text-xs font-medium text-zinc-400 uppercase tracking-wider mb-1" htmlFor="track-url">
+                Pegar enlace (Spotify / YouTube)
+              </label>
+              <div className="relative">
+                <Link2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+                <input
+                  id="track-url"
+                  type="url"
+                  inputMode="url"
+                  value={urlInput}
+                  onChange={(e) => handleUrlChange(e.target.value)}
+                  placeholder="https://open.spotify.com/...  ó  https://youtu.be/..."
+                  className="w-full bg-zinc-900 border border-zinc-800 text-white rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+                />
+              </div>
+
+              {/* Feedback de detección */}
+              {parsed && (
+                <div className="mt-1.5 flex items-center gap-2 text-xs text-emerald-400">
+                  <CheckCircle2 size={13} className="shrink-0" />
+                  <span>
+                    Detectado: <strong className="capitalize">{parsed.provider}</strong> · {describeKind(parsed.kind)}
+                    {fetchingMeta && <Loader2 size={11} className="inline ml-1.5 animate-spin" />}
+                  </span>
+                </div>
+              )}
+              {parsed && !parsed.isSingleTrack && (
+                <div className="mt-1.5 flex items-start gap-1.5 text-xs text-amber-400/90">
+                  <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+                  <span>Esto es un {describeKind(parsed.kind)}, no un tema único. La reproducción espera un tema/video individual.</span>
+                </div>
+              )}
+              {urlTouched && !parsed && (
+                <div className="mt-1.5 flex items-center gap-1.5 text-xs text-zinc-500">
+                  <AlertTriangle size={12} className="shrink-0" />
+                  <span>No reconocí el enlace. Podés completar los campos manualmente.</span>
+                </div>
+              )}
+            </div>
+
             {/* Título */}
             <div>
               <label className="block text-xs font-medium text-zinc-400 uppercase tracking-wider mb-1" htmlFor="track-title">
@@ -197,7 +280,7 @@ export default function TrackDialog({ isOpen, onClose, attributes, onSave, track
                   <button
                     key={src}
                     type="button"
-                    onClick={() => setProvider(src)}
+                    onClick={() => { setProvider(src); setSourceUri(undefined); setParsed(null); }}
                     className={`py-2 px-1 text-xs rounded-lg border text-center font-medium capitalize transition-all ${
                       provider === src 
                         ? 'border-violet-600 bg-violet-950/40 text-violet-300' 
@@ -224,7 +307,7 @@ export default function TrackDialog({ isOpen, onClose, attributes, onSave, track
                 id="track-external-id"
                 type="text"
                 value={externalId}
-                onChange={(e) => setExternalId(e.target.value)}
+                onChange={(e) => { setExternalId(e.target.value); setSourceUri(undefined); }}
                 placeholder={provider === 'spotify' ? 'Ej. 3Z9O678a9B' : provider === 'youtube' ? 'Ej. mB-OuhqAnK8' : 'Ej. tambor_medicina.mp3'}
                 className="w-full bg-zinc-900 border border-zinc-800 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500 font-mono text-xs"
               />
