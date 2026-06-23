@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RitualTemplate, AttributeDefinition, Track, Region, Anchor, Silence, CurvePoint } from '../types';
+import { RitualTemplate, AttributeDefinition, Track, Region, Anchor, AnchorPlacement, Silence, CurvePoint } from '../types';
 import { validateAppTemplate } from '../services/coreMapping';
 import type { ValidationResult } from '../ritual-core';
 import CurveEditor from './CurveEditor';
@@ -174,13 +174,21 @@ export default function TemplateEditor({ template, attributes, tracks, onBack, o
     const newAnchor: Anchor = {
       id: `anc-${Date.now()}`,
       trackId: tracks[0].id,
-      placement: 30
+      placement: { type: 'time', t: 30 }
     };
     setAnchors([...anchors, newAnchor]);
   };
 
   const handleUpdateAnchor = (id: string, updated: Partial<Anchor>) => {
     setAnchors(prev => prev.map(a => a.id === id ? { ...a, ...updated } : a));
+  };
+
+  const handleChangeAnchorPlacementType = (id: string, type: AnchorPlacement['type']) => {
+    let placement: AnchorPlacement;
+    if (type === 'time') placement = { type: 'time', t: 30 };
+    else if (type === 'region') placement = { type: 'region', regionId: regions[0]?.id || '', position: 'any' };
+    else placement = { type: 'anywhere' };
+    handleUpdateAnchor(id, { placement });
   };
 
   const handleRemoveAnchor = (id: string) => {
@@ -498,23 +506,67 @@ export default function TemplateEditor({ template, attributes, tracks, onBack, o
                         </select>
                       </div>
 
-                      {/* placement slider */}
-                      <div className="md:col-span-4 flex items-center gap-2">
-                        <div className="w-full">
-                          <div className="flex justify-between text-[8px] font-semibold text-zinc-500 uppercase mb-0.5">
-                            <span>Posición Relativa</span>
-                            <span className="font-mono text-violet-400">{anc.placement}%</span>
-                          </div>
-                          <input
-                            type="range"
-                            min="0"
-                            max="100"
-                            value={anc.placement}
-                            onChange={(e) => handleUpdateAnchor(anc.id, { placement: parseInt(e.target.value, 10) })}
-                            className="w-full accent-violet-600 h-1 bg-zinc-800 rounded"
-                            id={`anchor-slider-${anc.id}`}
-                          />
+                      {/* placement controls */}
+                      <div className="md:col-span-4 space-y-1.5">
+                        <div>
+                          <label className="block text-[8px] font-semibold text-zinc-500 uppercase mb-0.5">Ubicación</label>
+                          <select
+                            value={anc.placement.type}
+                            onChange={(e) => handleChangeAnchorPlacementType(anc.id, e.target.value as AnchorPlacement['type'])}
+                            className="w-full bg-zinc-900 border border-zinc-850 text-zinc-300 text-[11px] rounded px-2 py-1 focus:outline-none"
+                            id={`anchor-type-${anc.id}`}
+                          >
+                            <option value="time">Tiempo fijo</option>
+                            <option value="region">En una región</option>
+                            <option value="anywhere">Donde encaje</option>
+                          </select>
                         </div>
+
+                        {anc.placement.type === 'time' && (
+                          <div>
+                            <div className="flex justify-between text-[8px] font-semibold text-zinc-500 uppercase mb-0.5">
+                              <span>Posición</span>
+                              <span className="font-mono text-violet-400">{anc.placement.t}%</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={anc.placement.t}
+                              onChange={(e) => handleUpdateAnchor(anc.id, { placement: { type: 'time', t: parseInt(e.target.value, 10) } })}
+                              className="w-full accent-violet-600 h-1 bg-zinc-800 rounded"
+                              id={`anchor-slider-${anc.id}`}
+                            />
+                          </div>
+                        )}
+
+                        {anc.placement.type === 'region' && (
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <select
+                              value={anc.placement.regionId}
+                              onChange={(e) => handleUpdateAnchor(anc.id, { placement: { type: 'region', regionId: e.target.value, position: anc.placement.type === 'region' ? anc.placement.position : 'any' } })}
+                              className="w-full bg-zinc-900 border border-zinc-850 text-zinc-300 text-[11px] rounded px-1.5 py-1 focus:outline-none"
+                              id={`anchor-region-${anc.id}`}
+                            >
+                              <option value="">— Región —</option>
+                              {regions.map(r => <option key={r.id} value={r.id}>{r.name || r.id}</option>)}
+                            </select>
+                            <select
+                              value={anc.placement.position}
+                              onChange={(e) => handleUpdateAnchor(anc.id, { placement: { type: 'region', regionId: anc.placement.type === 'region' ? anc.placement.regionId : '', position: e.target.value as 'start' | 'end' | 'any' } })}
+                              className="w-full bg-zinc-900 border border-zinc-850 text-zinc-300 text-[11px] rounded px-1.5 py-1 focus:outline-none"
+                              id={`anchor-position-${anc.id}`}
+                            >
+                              <option value="start">Inicio</option>
+                              <option value="end">Final</option>
+                              <option value="any">Cualquiera</option>
+                            </select>
+                          </div>
+                        )}
+
+                        {anc.placement.type === 'anywhere' && (
+                          <p className="text-[9px] text-zinc-500 italic pt-1">El motor la ubica donde mejor encaje en el viaje.</p>
+                        )}
                       </div>
 
                       {/* remove handle */}

@@ -7,6 +7,7 @@ import {
   seedUserDataIfNeeded,
   fetchAttributes,
   createAttribute,
+  updateAttribute,
   deleteAttribute,
   fetchTracks,
   createTrack,
@@ -200,13 +201,24 @@ export default function App() {
     if (!user) return;
     setDbLoading(true);
     try {
-      await createAttribute(user.uid, emotionFields);
+      if (selectedEmotionForEdit) {
+        // Editar (incluye la paleta de fábrica, que es editable): preserva id/owner/builtIn.
+        const updated: AttributeDefinition = { ...selectedEmotionForEdit, ...emotionFields };
+        await updateAttribute(user.uid, updated);
+      } else {
+        await createAttribute(user.uid, emotionFields);
+      }
       await reloadAllUserData(user.uid);
     } catch (err) {
-      console.error("Error creating emotion:", err);
+      console.error("Error saving emotion:", err);
     } finally {
       setDbLoading(false);
     }
+  };
+
+  const handleOpenEmotionEdit = (attr: AttributeDefinition) => {
+    setSelectedEmotionForEdit(attr);
+    setIsEmotionDialogOpen(true);
   };
 
   const handleDeleteEmotion = async (id: string) => {
@@ -690,18 +702,26 @@ export default function App() {
                         </span>
                       </div>
 
-                      {!attr.builtIn ? (
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                         <button
-                          onClick={() => handleDeleteEmotion(attr.id)}
-                          className="text-zinc-600 hover:text-red-400 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                          title="Eliminar dimensión propia"
-                          id={`delete-emotion-btn-${attr.id}`}
+                          onClick={() => handleOpenEmotionEdit(attr)}
+                          className="text-zinc-600 hover:text-violet-400 p-1 rounded"
+                          title={attr.builtIn ? 'Editar dimensión de fábrica' : 'Editar dimensión propia'}
+                          id={`edit-emotion-btn-${attr.id}`}
                         >
-                          <Trash2 size={12} />
+                          <Edit size={12} />
                         </button>
-                      ) : (
-                        <span className="text-[9px] text-zinc-650 font-mono tracking-wider uppercase font-semibold">Base</span>
-                      )}
+                        {!attr.builtIn && (
+                          <button
+                            onClick={() => handleDeleteEmotion(attr.id)}
+                            className="text-zinc-600 hover:text-red-400 p-1 rounded"
+                            title="Eliminar dimensión propia"
+                            id={`delete-emotion-btn-${attr.id}`}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}

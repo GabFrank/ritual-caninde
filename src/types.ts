@@ -64,10 +64,21 @@ export interface Region {
   targets: RegionTarget[];
 }
 
+/**
+ * Dónde se clava un ancla (espejo del AnchorPlacement del núcleo, pero en escala de UI).
+ * - 'time'     → posición temporal fija (t en 0..100% de la duración).
+ * - 'region'   → atada a una región (al inicio, al final, o en cualquier punto del tramo).
+ * - 'anywhere' → el motor la ubica donde mejor encaje.
+ */
+export type AnchorPlacement =
+  | { type: 'time'; t: number }
+  | { type: 'region'; regionId: string; position: 'start' | 'end' | 'any' }
+  | { type: 'anywhere' };
+
 export interface Anchor {
   id: string;
   trackId: string;
-  placement: number; // Percentage of total duration (0 to 100) where it should be placed
+  placement: AnchorPlacement;
 }
 
 export interface Silence {

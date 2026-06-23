@@ -77,9 +77,34 @@ describe('validateAppTemplate — gatea el guardado', () => {
   it('marca error si un ancla referencia un track inexistente', () => {
     const bad: RitualTemplate = {
       ...template,
-      anchors: [{ id: 'anc1', trackId: 'NO_EXISTE', placement: 30 }],
+      anchors: [{ id: 'anc1', trackId: 'NO_EXISTE', placement: { type: 'time', t: 30 } }],
     };
     const res = validateAppTemplate(bad, tracks, attrs);
     expect(res.ok).toBe(false);
+  });
+});
+
+describe('coreMapping — placement de anclas (UI → núcleo)', () => {
+  it("traduce 'time' a 0..1 y pasa 'region'/'anywhere' tal cual", () => {
+    const withAnchors: RitualTemplate = {
+      ...template,
+      anchors: [
+        { id: 'a1', trackId: 't1', placement: { type: 'time', t: 40 } },
+        { id: 'a2', trackId: 't2', placement: { type: 'region', regionId: 'r2', position: 'end' } },
+        { id: 'a3', trackId: 't3', placement: { type: 'anywhere' } },
+      ],
+    };
+    const core = toCoreTemplate(withAnchors);
+    expect(core.anchors[0].placement).toEqual({ type: 'time', t: 0.4 });
+    expect(core.anchors[1].placement).toEqual({ type: 'region', regionId: 'r2', position: 'end' });
+    expect(core.anchors[2].placement).toEqual({ type: 'anywhere' });
+  });
+
+  it('acepta una plantilla con un ancla por región válida', () => {
+    const withAnchors: RitualTemplate = {
+      ...template,
+      anchors: [{ id: 'a2', trackId: 't2', placement: { type: 'region', regionId: 'r2', position: 'end' } }],
+    };
+    expect(validateAppTemplate(withAnchors, tracks, attrs).ok).toBe(true);
   });
 });

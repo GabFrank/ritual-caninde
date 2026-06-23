@@ -83,11 +83,14 @@ export function toCoreTemplate(tmpl: RitualTemplate): CoreTemplate {
       endT: pct(r.endT),
       targets: r.targets.map(toCoreTarget),
     })),
-    // En la UI el ancla es una posición temporal (0..100%); se traduce a placement 'time'.
     anchors: tmpl.anchors.map((a) => ({
       id: a.id,
       trackId: a.trackId,
-      placement: { type: 'time' as const, t: pct(a.placement) },
+      // 'time' usa escala UI (0..100 → 0..1); 'region'/'anywhere' pasan tal cual.
+      placement:
+        a.placement.type === 'time'
+          ? { type: 'time' as const, t: pct(a.placement.t) }
+          : a.placement,
     })),
     silences: tmpl.silences.map((s) => ({ id: s.id, t: pct(s.t), durationMs: s.durationMs })),
     ambient: tmpl.ambient
