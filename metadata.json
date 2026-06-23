@@ -1,0 +1,6 @@
+{
+  "name": "Ritual Canindé",
+  "description": "Una app de curaduría y orquestación musical para meditaciones y ceremonias con medicinas sagradas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
