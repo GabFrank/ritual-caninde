@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch: {}
 
 # semantic-release necesita escribir tags/commits/releases; el deploy sólo lee.
 permissions:
