@@ -178,7 +178,7 @@ export default function TrackDialog({ isOpen, onClose, attributes, onSave, track
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm" id="track-dialog-container">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90" id="track-dialog-container">
       <div className="w-full max-w-2xl border bg-zinc-950 border-zinc-800 rounded-xl p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto" id="track-dialog">
         <button 
           onClick={onClose} 

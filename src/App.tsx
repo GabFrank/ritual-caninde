@@ -420,7 +420,7 @@ export default function App() {
               Ingresar como Facilitador Demo
             </button>
 
-            <div className="p-4 bg-violet-950/10 rounded-xl text-left text-xs text-violet-300/90 border border-violet-900/20 backdrop-blur-sm" id="login-iframe-notice">
+            <div className="p-4 bg-violet-950/10 rounded-xl text-left text-xs text-violet-300/90 border border-violet-900/20" id="login-iframe-notice">
               <span className="font-bold block mb-1 text-violet-200">🔮 ¿Bloqueos de ventana popup?</span>
               Si estás en el visor de AI Studio, haz click en <strong className="text-white bg-violet-900/40 px-1 py-0.5 rounded">Facilitador Demo</strong> para acceder instantáneamente sin abrir popups externos.
             </div>
@@ -479,7 +479,7 @@ export default function App() {
     <div className="min-h-screen bg-[#09090b] text-zinc-200 flex flex-col justify-between" id="dashboard-layout">
       
       {/* 1. Header Navigation Panel (Immersive UI style) */}
-      <header className="h-16 border-b border-zinc-800/50 flex items-center justify-between px-8 bg-black/40 backdrop-blur-md sticky top-0 z-30" id="navigator-header">
+      <header className="h-16 border-b border-zinc-800/50 flex items-center justify-between px-8 bg-black/80 sticky top-0 z-30" id="navigator-header">
         <div className="w-full max-w-7xl mx-auto flex items-center justify-between">
           
           <div className="flex items-center gap-3">
