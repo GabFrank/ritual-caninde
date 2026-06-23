@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/GabFrank/ritual-caninde/compare/v1.2.0...v1.2.1) (2026-06-23)
+
+
+### Bug Fixes
+
+* **ui:** el cursor desaparecía sobre blurs (diálogos y curva) ([#7](https://github.com/GabFrank/ritual-caninde/issues/7)) ([b1ad852](https://github.com/GabFrank/ritual-caninde/commit/b1ad852f414ea1836ab812ba74d09a979c61410f))
+
 # [1.2.0](https://github.com/GabFrank/ritual-caninde/compare/v1.1.0...v1.2.0) (2026-06-23)
 
 
