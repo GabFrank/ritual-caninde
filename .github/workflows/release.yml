@@ -18,6 +18,9 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
+    # A nivel job para poder usarlo en el `if` del deploy (no se pueden leer secrets en `if`).
+    env:
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -54,5 +57,3 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           projectId: franco-control
           channelId: live
-        env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
