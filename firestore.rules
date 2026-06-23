@@ -1,0 +1,45 @@
+rules_version = '2';
+
+// Reglas de seguridad de Ritual Canindé.
+//
+// Modelo de datos: una colección por entidad, cada documento con `ownerId = user.uid`
+// (mismo patrón que CanindéChords y que aplica FirestoreRepository). Un usuario sólo
+// puede leer/escribir lo suyo.
+//
+// Nota: la app usa una base de datos Firestore con id custom (ai-studio-...). Desplegá
+// estas reglas sobre esa base:
+//   firebase deploy --only firestore:rules
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function owns(data) {
+      return isSignedIn() && data.ownerId == request.auth.uid;
+    }
+    // En create/update el documento entrante debe pertenecer al usuario.
+    function incomingIsMine() {
+      return owns(request.resource.data);
+    }
+    // En read/update/delete el documento existente debe pertenecer al usuario.
+    function existingIsMine() {
+      return owns(resource.data);
+    }
+
+    match /{collection}/{docId} {
+      allow read: if existingIsMine()
+        && collection in ['attributeDefinitions', 'tracks', 'ritualTemplates', 'generatedSequences'];
+
+      allow create: if incomingIsMine()
+        && collection in ['attributeDefinitions', 'tracks', 'ritualTemplates', 'generatedSequences'];
+
+      allow update: if existingIsMine() && incomingIsMine()
+        && collection in ['attributeDefinitions', 'tracks', 'ritualTemplates', 'generatedSequences'];
+
+      allow delete: if existingIsMine()
+        && collection in ['attributeDefinitions', 'tracks', 'ritualTemplates', 'generatedSequences'];
+    }
+  }
+}
