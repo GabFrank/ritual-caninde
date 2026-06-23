@@ -16,10 +16,13 @@ import {
   fetchTemplates,
   createTemplate,
   updateTemplate,
-  deleteTemplate
+  deleteTemplate,
+  saveSequence,
+  clearUserData
 } from './services/firebase';
+import { handleRedirectCallback } from './services/auth/oauthSessions';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { AttributeDefinition, Track, RitualTemplate } from './types';
+import { AttributeDefinition, Track, RitualTemplate, GeneratedSequence } from './types';
 import TrackDialog from './components/TrackDialog';
 import EmotionDialog from './components/EmotionDialog';
 import TemplateEditor from './components/TemplateEditor';
@@ -71,6 +74,12 @@ export default function App() {
   // UI state for filters/searching
   const [trackSearchQuery, setTrackSearchQuery] = useState('');
   const [trackProviderFilter, setTrackProviderFilter] = useState<'all' | 'spotify' | 'youtube' | 'local'>('all');
+
+  // 0. OAuth (Spotify/YouTube) redirect callback: si volvemos de /callback con ?code,
+  // canjea el token y limpia la URL. No bloquea el flujo de Firebase Auth.
+  useEffect(() => {
+    handleRedirectCallback().catch((err) => console.warn('OAuth callback:', err));
+  }, []);
 
   // 1. Auth Listener Connection
   useEffect(() => {
@@ -270,6 +279,28 @@ export default function App() {
     }
   };
 
+  // Persistir un borrador generado (colección generatedSequences).
+  const handleSaveDraft = async (sequence: GeneratedSequence) => {
+    if (!user) return;
+    await saveSequence(user.uid, sequence);
+  };
+
+  // Limpiar y re-sembrar los datos de prueba (p. ej. tras migrar de escala).
+  const handleResetTestData = async () => {
+    if (!user || !confirm('Esto borra TODA tu biblioteca, paleta, plantillas y borradores, y vuelve a sembrar los datos de fábrica. ¿Continuar?')) return;
+    setDbLoading(true);
+    try {
+      await clearUserData(user.uid, true);
+      await reloadAllUserData(user.uid);
+      setEditingTemplate(null);
+      setActiveTemplateForPlayback(null);
+    } catch (err) {
+      console.error('Error reiniciando datos:', err);
+    } finally {
+      setDbLoading(false);
+    }
+  };
+
   const handleCreateNewTemplate = () => {
     const raw: RitualTemplate = {
       id: '',
@@ -434,6 +465,7 @@ export default function App() {
             tracks={tracks}
             attributes={attributes}
             onBack={() => setActiveTemplateForPlayback(null)}
+            onSaveDraft={handleSaveDraft}
           />
         </div>
       </div>
@@ -891,7 +923,17 @@ export default function App() {
       {/* 3. Global Dashboard Footer */}
       <footer className="border-t border-zinc-900 bg-[#060608] px-6 py-6" id="navigator-footer">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center text-xs text-zinc-500 gap-4">
-          <p>© 2026 Ritual Canindé - Orquestador y Guardián de Medicina Sagrada.</p>
+          <div className="flex items-center gap-3">
+            <p>© 2026 Ritual Canindé - Orquestador y Guardián de Medicina Sagrada.</p>
+            <button
+              onClick={handleResetTestData}
+              className="text-[10px] text-zinc-600 hover:text-red-400 border border-zinc-850 hover:border-red-950/50 rounded-full px-2 py-0.5 transition-colors cursor-pointer"
+              title="Borra y vuelve a sembrar los datos de fábrica"
+              id="reset-test-data-btn"
+            >
+              Reiniciar datos
+            </button>
+          </div>
           <div className="flex gap-4">
             <span className="flex items-center gap-1 text-[11px] text-zinc-400">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />

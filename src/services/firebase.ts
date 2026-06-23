@@ -248,6 +248,28 @@ export async function seedUserDataIfNeeded(userId: string): Promise<void> {
   }
 }
 
+/**
+ * Borra TODOS los datos del usuario (las 4 colecciones) y opcionalmente re-siembra.
+ * Útil para limpiar datos de prueba (p. ej. tras migrar de escala 0..100 a 0..1).
+ */
+export async function clearUserData(userId: string, reseed = true): Promise<void> {
+  const repos = makeRepositories(userId);
+  const all = await Promise.all([
+    repos.attributes.list(),
+    repos.tracks.list(),
+    repos.templates.list(),
+    repos.sequences.list(),
+  ]);
+  const [attrs, trks, tmpls, seqs] = all;
+  await Promise.all([
+    ...attrs.map((e) => repos.attributes.remove(e.id)),
+    ...trks.map((e) => repos.tracks.remove(e.id)),
+    ...tmpls.map((e) => repos.templates.remove(e.id)),
+    ...seqs.map((e) => repos.sequences.remove(e.id)),
+  ]);
+  if (reseed) await seedUserDataIfNeeded(userId);
+}
+
 // ----------------------------------------------------
 // CRUD ATTRIBUTES
 // ----------------------------------------------------
