@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AttributeDefinition, AttributeKind } from '../types';
-import { X, Plus, Trash2 } from 'lucide-react';
+import { X, Plus } from 'lucide-react';
 
 interface EmotionDialogProps {
   isOpen: boolean;
@@ -29,6 +29,17 @@ export default function EmotionDialog({ isOpen, onClose, onSave, attribute }: Em
   const [options, setOptions] = useState<string[]>(attribute?.options || []);
   const [newOption, setNewOption] = useState('');
 
+  // El diálogo queda montado entre aperturas: hay que re-sincronizar el formulario con
+  // el atributo a editar (o limpiarlo al crear) cada vez que se abre.
+  useEffect(() => {
+    if (!isOpen) return;
+    setName(attribute?.name || '');
+    setColor(attribute?.color || COLOR_PRESETS[0]);
+    setKind(attribute?.kind || 'intensity');
+    setOptions(attribute?.options || []);
+    setNewOption('');
+  }, [isOpen, attribute]);
+
   if (!isOpen) return null;
 
   const handleAddOption = () => {
@@ -44,13 +55,15 @@ export default function EmotionDialog({ isOpen, onClose, onSave, attribute }: Em
 
   const handleSave = () => {
     if (!name.trim()) return;
+    const sameKind = attribute?.kind === kind;
     onSave({
       name: name.trim(),
       color,
       kind,
       options: kind === 'category' ? options : undefined,
-      min: kind === 'intensity' ? 1 : undefined,
-      max: kind === 'intensity' ? 10 : undefined
+      // Preserva min/max propios al editar una intensidad; si no, usa el rango 1..10.
+      min: kind === 'intensity' ? (sameKind ? attribute?.min ?? 1 : 1) : undefined,
+      max: kind === 'intensity' ? (sameKind ? attribute?.max ?? 10 : 10) : undefined
     });
     onClose();
   };

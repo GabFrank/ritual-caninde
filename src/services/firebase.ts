@@ -1,29 +1,16 @@
 import { initializeApp } from 'firebase/app';
-import { 
-  initializeFirestore, 
-  collection, 
-  doc, 
-  getDocs, 
-  getDoc,
-  setDoc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  query, 
-  where, 
-  orderBy,
-  serverTimestamp
-} from 'firebase/firestore';
-import { 
-  getAuth, 
-  signInWithPopup, 
-  GoogleAuthProvider, 
+import { initializeFirestore } from 'firebase/firestore';
+import {
+  getAuth,
+  signInWithPopup,
+  GoogleAuthProvider,
   signOut,
-  onAuthStateChanged,
   signInAnonymously,
   User
 } from 'firebase/auth';
 import { AttributeDefinition, Track, RitualTemplate, GeneratedSequence } from '../types';
+import { makeId } from '../ritual-core';
+import { makeRepositories } from './repositories';
 
 // Firebase configuration from firebase-applet-config.json
 const firebaseConfig = {
@@ -83,6 +70,12 @@ export async function signInDemoGuest(): Promise<User> {
 export async function signOutUser(): Promise<void> {
   await signOut(auth);
 }
+
+// ----------------------------------------------------
+// PERSISTENCIA: todo el CRUD pasa por FirestoreRepository<T>, el adaptador del puerto
+// Repository<T> de ritual-core. Una colección por entidad; el ownerId y los timestamps
+// los estampa el repositorio, que además sanea con sanitizeForStorage antes de escribir.
+// ----------------------------------------------------
 
 // ----------------------------------------------------
 // SEED DATA HELPERS FOR NEW USERS
@@ -150,26 +143,26 @@ const PRE_CURATED_TEMPLATES = [
     name: "Ceremonia de Medicina Sagrada (Estándar)",
     totalDurationMs: 4 * 60 * 60 * 1000, // 4 Horas
     curve: [
-      { t: 0, energy: 20 },
-      { t: 15, energy: 40 },
-      { t: 30, energy: 60 },
-      { t: 50, energy: 85 },
-      { t: 70, energy: 50 },
-      { t: 85, energy: 30 },
-      { t: 100, energy: 15 }
+      { t: 0, energy: 0.2 },
+      { t: 0.15, energy: 0.4 },
+      { t: 0.3, energy: 0.6 },
+      { t: 0.5, energy: 0.85 },
+      { t: 0.7, energy: 0.5 },
+      { t: 0.85, energy: 0.3 },
+      { t: 1, energy: 0.15 }
     ],
     regions: [
-      { id: "reg-1", name: "Apertura del Altar", startT: 0, endT: 20, targets: [] },
-      { id: "reg-2", name: "Trance Profundo", startT: 20, endT: 45, targets: [] },
-      { id: "reg-3", name: "Elevación de Energía - Fuego", startT: 45, endT: 70, targets: [] },
-      { id: "reg-4", name: "Integración y Rezando", startT: 70, endT: 100, targets: [] }
+      { id: "reg-1", name: "Apertura del Altar", startT: 0, endT: 0.2, targets: [] },
+      { id: "reg-2", name: "Trance Profundo", startT: 0.2, endT: 0.45, targets: [] },
+      { id: "reg-3", name: "Elevación de Energía - Fuego", startT: 0.45, endT: 0.7, targets: [] },
+      { id: "reg-4", name: "Integración y Rezando", startT: 0.7, endT: 1, targets: [] }
     ],
     anchors: [],
     silences: [
-      { id: "sil-1", t: 45, durationMs: 5 * 60 * 1000 }, // 5 mins de silencio antes del climax
-      { id: "sil-2", t: 70, durationMs: 10 * 60 * 1000 } // 10 mins tras la bajada
+      { id: "sil-1", t: 0.45, durationMs: 5 * 60 * 1000 }, // 5 mins de silencio antes del climax
+      { id: "sil-2", t: 0.7, durationMs: 10 * 60 * 1000 } // 10 mins tras la bajada
     ],
-    ambient: { enabled: true, baseVolume: 35 }
+    ambient: { enabled: true, baseVolume: 0.35 }
   }
 ];
 
@@ -177,248 +170,187 @@ const PRE_CURATED_TEMPLATES = [
  * Seeds a user's collection on Firestore if it doesn't have emotions configured.
  */
 export async function seedUserDataIfNeeded(userId: string): Promise<void> {
-  const attribCol = collection(db, 'attributeDefinitions');
-  const qAttr = query(attribCol, where('ownerId', '==', userId));
-  const snapAttr = await getDocs(qAttr);
+  const repos = makeRepositories(userId);
+  const existing = await repos.attributes.list();
+  if (existing.length > 0) return;
 
-  if (snapAttr.empty) {
-    console.log("Seeding default emotions and tracks for user:", userId);
-    
-    // 1. Seed emotions and map their assigned Firestore IDs
-    const createdEmotionsMap: Record<string, string> = {};
-    
-    for (const em of BUILT_IN_EMOTIONS) {
-      const docRef = doc(attribCol); // auto ID
-      const emotionData: AttributeDefinition = {
-        id: docRef.id,
-        name: em.name,
-        color: em.color,
-        kind: em.kind as any,
-        min: em.min,
-        max: em.max,
-        builtIn: em.builtIn,
-        ownerId: userId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      await setDoc(docRef, emotionData);
-      createdEmotionsMap[em.name] = docRef.id;
-    }
+  console.log("Seeding default emotions and tracks for user:", userId);
 
-    // Load newly created IDs from map
-    const tracksCol = collection(db, 'tracks');
-    for (const tr of PRE_CURATED_TRACKS) {
-      const docRef = doc(tracksCol);
-      const tags = tr.tagMapping
-        .filter(tm => createdEmotionsMap[tm.name])
-        .map(tm => ({
-          defId: createdEmotionsMap[tm.name],
-          value: tm.value
-        }));
+  // 1. Seed emotions and map their assigned ids.
+  const createdEmotionsMap: Record<string, string> = {};
+  for (const em of BUILT_IN_EMOTIONS) {
+    const id = makeId('attr');
+    const emotion: AttributeDefinition = {
+      id,
+      name: em.name,
+      color: em.color,
+      kind: em.kind as any,
+      min: em.min,
+      max: em.max,
+      builtIn: em.builtIn,
+      ownerId: userId,
+    };
+    await repos.attributes.save(emotion);
+    createdEmotionsMap[em.name] = id;
+  }
 
-      const trackData: Track = {
-        id: docRef.id,
-        title: tr.title,
-        artist: tr.artist,
-        durationMs: tr.durationMs,
-        tags,
-        source: tr.source as any,
-        audioMeta: tr.audioMeta,
-        ownerId: userId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      await setDoc(docRef, trackData);
-    }
+  // 2. Seed pre-curated tracks, mapping tags to the freshly created emotion ids.
+  for (const tr of PRE_CURATED_TRACKS) {
+    const tags = tr.tagMapping
+      .filter((tm) => createdEmotionsMap[tm.name])
+      .map((tm) => ({ defId: createdEmotionsMap[tm.name], value: tm.value }));
 
-    // Setup first template with region mappings using our seeded emotions
-    const templatesCol = collection(db, 'ritualTemplates');
-    for (const tm of PRE_CURATED_TEMPLATES) {
-      const docRef = doc(templatesCol);
-      
-      // Map region targets
-      const customizedRegions = tm.regions.map((reg, index) => {
-        const targets: any[] = [];
-        if (index === 0) { // Apertura
-          const emId = createdEmotionsMap["Apertura / Expansión"] || "";
-          if (emId) targets.push({ defId: emId, weight: 80, min: 6, max: 10 });
-        } else if (index === 1) { // Trance
-          const emId = createdEmotionsMap["Profundidad / Introspección"] || "";
-          if (emId) targets.push({ defId: emId, weight: 90, min: 7, max: 10 });
-        } else if (index === 2) { // Poder
-          const emId = createdEmotionsMap["Poder / Fuego"] || "";
-          if (emId) targets.push({ defId: emId, weight: 95, min: 8, max: 10 });
-        } else if (index === 3) { // Integración
-          const emId = createdEmotionsMap["Integración / Paz"] || "";
-          if (emId) targets.push({ defId: emId, weight: 90, min: 6, max: 10 });
-        }
-        return { ...reg, targets };
-      });
+    const track: Track = {
+      id: makeId('track'),
+      title: tr.title,
+      artist: tr.artist,
+      durationMs: tr.durationMs,
+      tags,
+      source: tr.source as any,
+      audioMeta: tr.audioMeta,
+      ownerId: userId,
+    };
+    await repos.tracks.save(track);
+  }
 
-      const templateData: RitualTemplate = {
-        id: docRef.id,
-        name: tm.name,
-        totalDurationMs: tm.totalDurationMs,
-        curve: tm.curve,
-        regions: customizedRegions,
-        anchors: tm.anchors,
-        silences: tm.silences,
-        ambient: tm.ambient,
-        ownerId: userId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      await setDoc(docRef, templateData);
-    }
+  // 3. Seed first template with region climates referencing our seeded emotions.
+  for (const tm of PRE_CURATED_TEMPLATES) {
+    const customizedRegions = tm.regions.map((reg, index) => {
+      const targets: any[] = [];
+      if (index === 0) {
+        const emId = createdEmotionsMap["Apertura / Expansión"];
+        if (emId) targets.push({ defId: emId, weight: 0.8, min: 6, max: 10 });
+      } else if (index === 1) {
+        const emId = createdEmotionsMap["Profundidad / Introspección"];
+        if (emId) targets.push({ defId: emId, weight: 0.9, min: 7, max: 10 });
+      } else if (index === 2) {
+        const emId = createdEmotionsMap["Poder / Fuego"];
+        if (emId) targets.push({ defId: emId, weight: 0.95, min: 8, max: 10 });
+      } else if (index === 3) {
+        const emId = createdEmotionsMap["Integración / Paz"];
+        if (emId) targets.push({ defId: emId, weight: 0.9, min: 6, max: 10 });
+      }
+      return { ...reg, targets };
+    });
+
+    const template: RitualTemplate = {
+      id: makeId('tmpl'),
+      name: tm.name,
+      totalDurationMs: tm.totalDurationMs,
+      curve: tm.curve,
+      regions: customizedRegions,
+      anchors: tm.anchors,
+      silences: tm.silences,
+      ambient: tm.ambient,
+      ownerId: userId,
+    };
+    await repos.templates.save(template);
   }
 }
 
+/**
+ * Borra TODOS los datos del usuario (las 4 colecciones) y opcionalmente re-siembra.
+ * Útil para limpiar datos de prueba (p. ej. tras migrar de escala 0..100 a 0..1).
+ */
+export async function clearUserData(userId: string, reseed = true): Promise<void> {
+  const repos = makeRepositories(userId);
+  const all = await Promise.all([
+    repos.attributes.list(),
+    repos.tracks.list(),
+    repos.templates.list(),
+    repos.sequences.list(),
+  ]);
+  const [attrs, trks, tmpls, seqs] = all;
+  await Promise.all([
+    ...attrs.map((e) => repos.attributes.remove(e.id)),
+    ...trks.map((e) => repos.tracks.remove(e.id)),
+    ...tmpls.map((e) => repos.templates.remove(e.id)),
+    ...seqs.map((e) => repos.sequences.remove(e.id)),
+  ]);
+  if (reseed) await seedUserDataIfNeeded(userId);
+}
+
 // ----------------------------------------------------
-// CRUD OPERATORS FOR ATTRIBUTES
+// CRUD ATTRIBUTES
 // ----------------------------------------------------
 
 export async function fetchAttributes(userId: string): Promise<AttributeDefinition[]> {
-  const attribCol = collection(db, 'attributeDefinitions');
-  // BuiltIn list can also be queried, but here we query user-owned ones
-  const q = query(attribCol, where('ownerId', '==', userId));
-  const snap = await getDocs(q);
-  const items: AttributeDefinition[] = [];
-  snap.forEach(doc => {
-    items.push(doc.data() as AttributeDefinition);
-  });
-  return items;
+  return makeRepositories(userId).attributes.list();
 }
 
-export async function createAttribute(userId: string, attr: Omit<AttributeDefinition, 'id' | 'ownerId' | 'builtIn'>): Promise<AttributeDefinition> {
-  const docRef = doc(collection(db, 'attributeDefinitions'));
-  const newAttr: AttributeDefinition = {
-    ...attr,
-    id: docRef.id,
-    builtIn: false,
-    ownerId: userId,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  };
-  await setDoc(docRef, newAttr);
-  return newAttr;
+export async function createAttribute(
+  userId: string,
+  attr: Omit<AttributeDefinition, 'id' | 'ownerId' | 'builtIn'>,
+): Promise<AttributeDefinition> {
+  const entity: AttributeDefinition = { ...attr, id: makeId('attr'), builtIn: false, ownerId: userId };
+  return makeRepositories(userId).attributes.save(entity);
 }
 
-export async function updateAttribute(attr: AttributeDefinition): Promise<void> {
-  const docRef = doc(db, 'attributeDefinitions', attr.id);
-  await updateDoc(docRef, {
-    ...attr,
-    updatedAt: new Date().toISOString()
-  });
+export async function updateAttribute(userId: string, attr: AttributeDefinition): Promise<void> {
+  await makeRepositories(userId).attributes.save(attr);
 }
 
-export async function deleteAttribute(attrId: string): Promise<void> {
-  await deleteDoc(doc(db, 'attributeDefinitions', attrId));
+export async function deleteAttribute(userId: string, attrId: string): Promise<void> {
+  await makeRepositories(userId).attributes.remove(attrId);
 }
 
 // ----------------------------------------------------
-// CRUD OPERATORS FOR TRACKS
+// CRUD TRACKS
 // ----------------------------------------------------
 
 export async function fetchTracks(userId: string): Promise<Track[]> {
-  const tracksCol = collection(db, 'tracks');
-  const q = query(tracksCol, where('ownerId', '==', userId));
-  const snap = await getDocs(q);
-  const items: Track[] = [];
-  snap.forEach(doc => {
-    items.push(doc.data() as Track);
-  });
-  return items;
+  return makeRepositories(userId).tracks.list();
 }
 
 export async function createTrack(userId: string, track: Omit<Track, 'id' | 'ownerId'>): Promise<Track> {
-  const docRef = doc(collection(db, 'tracks'));
-  const newTrack: Track = {
-    ...track,
-    id: docRef.id,
-    ownerId: userId,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  };
-  await setDoc(docRef, newTrack);
-  return newTrack;
+  const entity: Track = { ...track, id: makeId('track'), ownerId: userId };
+  return makeRepositories(userId).tracks.save(entity);
 }
 
-export async function updateTrack(track: Track): Promise<void> {
-  const docRef = doc(db, 'tracks', track.id);
-  await updateDoc(docRef, {
-    ...track,
-    updatedAt: new Date().toISOString()
-  });
+export async function updateTrack(userId: string, track: Track): Promise<void> {
+  await makeRepositories(userId).tracks.save(track);
 }
 
-export async function deleteTrack(trackId: string): Promise<void> {
-  await deleteDoc(doc(db, 'tracks', trackId));
+export async function deleteTrack(userId: string, trackId: string): Promise<void> {
+  await makeRepositories(userId).tracks.remove(trackId);
 }
 
 // ----------------------------------------------------
-// CRUD OPERATORS FOR TEMPLATES
+// CRUD TEMPLATES
 // ----------------------------------------------------
 
 export async function fetchTemplates(userId: string): Promise<RitualTemplate[]> {
-  const templatesCol = collection(db, 'ritualTemplates');
-  const q = query(templatesCol, where('ownerId', '==', userId));
-  const snap = await getDocs(q);
-  const items: RitualTemplate[] = [];
-  snap.forEach(doc => {
-    items.push(doc.data() as RitualTemplate);
-  });
-  return items;
+  return makeRepositories(userId).templates.list();
 }
 
-export async function createTemplate(userId: string, template: Omit<RitualTemplate, 'id' | 'ownerId'>): Promise<RitualTemplate> {
-  const docRef = doc(collection(db, 'ritualTemplates'));
-  const newTemplate: RitualTemplate = {
-    ...template,
-    id: docRef.id,
-    ownerId: userId,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  };
-  await setDoc(docRef, newTemplate);
-  return newTemplate;
+export async function createTemplate(
+  userId: string,
+  template: Omit<RitualTemplate, 'id' | 'ownerId'>,
+): Promise<RitualTemplate> {
+  const entity: RitualTemplate = { ...template, id: makeId('tmpl'), ownerId: userId };
+  return makeRepositories(userId).templates.save(entity);
 }
 
-export async function updateTemplate(template: RitualTemplate): Promise<void> {
-  const docRef = doc(db, 'ritualTemplates', template.id);
-  await updateDoc(docRef, {
-    ...template,
-    updatedAt: new Date().toISOString()
-  });
+export async function updateTemplate(userId: string, template: RitualTemplate): Promise<void> {
+  await makeRepositories(userId).templates.save(template);
 }
 
-export async function deleteTemplate(templateId: string): Promise<void> {
-  await deleteDoc(doc(db, 'ritualTemplates', templateId));
+export async function deleteTemplate(userId: string, templateId: string): Promise<void> {
+  await makeRepositories(userId).templates.remove(templateId);
 }
 
 // ----------------------------------------------------
-// CRUD OPERATORS FOR GENERATED SEQUENCES
+// CRUD GENERATED SEQUENCES
 // ----------------------------------------------------
 
 export async function fetchSequences(userId: string): Promise<GeneratedSequence[]> {
-  const col = collection(db, 'generatedSequences');
-  const q = query(col, where('ownerId', '==', userId));
-  const snap = await getDocs(q);
-  const items: GeneratedSequence[] = [];
-  snap.forEach(doc => {
-    items.push(doc.data() as GeneratedSequence);
-  });
-  return items;
+  return makeRepositories(userId).sequences.list();
 }
 
-export async function saveSequence(userId: string, seq: GeneratedSequence): Promise<void> {
-  const docRef = doc(db, 'generatedSequences', seq.id);
-  await setDoc(docRef, {
-    ...seq,
-    ownerId: userId,
-    createdAt: new Date().toISOString()
-  });
+export async function saveSequence(userId: string, seq: GeneratedSequence): Promise<GeneratedSequence> {
+  return makeRepositories(userId).sequences.save({ ...seq, ownerId: userId });
 }
 
-export async function deleteSequence(seqId: string): Promise<void> {
-  await deleteDoc(doc(db, 'generatedSequences', seqId));
+export async function deleteSequence(userId: string, seqId: string): Promise<void> {
+  await makeRepositories(userId).sequences.remove(seqId);
 }

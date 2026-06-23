@@ -8,20 +8,24 @@ interface CurveEditorProps {
   height?: number;
 }
 
+// El modelo usa la escala del núcleo: t y energy en 0..1 (la UI los muestra como %).
+const clamp01 = (n: number): number => Math.max(0, Math.min(1, n));
+const round2 = (n: number): number => Math.round(n * 100) / 100;
+
 export default function CurveEditor({ points, onChange, height = 240 }: CurveEditorProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [activePointIndex, setActivePointIndex] = useState<number | null>(null);
   const [draggedPointIndex, setDraggedPointIndex] = useState<number | null>(null);
 
-  // Ensure first and last points are always present
+  // Ensure first and last points are always present (t anclado en 0 y 1)
   useEffect(() => {
     let updated = [...points];
     let changed = false;
 
     if (updated.length === 0) {
       updated = [
-        { t: 0, energy: 20 },
-        { t: 100, energy: 20 }
+        { t: 0, energy: 0.2 },
+        { t: 1, energy: 0.2 }
       ];
       changed = true;
     } else {
@@ -31,8 +35,8 @@ export default function CurveEditor({ points, onChange, height = 240 }: CurveEdi
         updated[0].t = 0;
         changed = true;
       }
-      if (updated[updated.length - 1].t !== 100) {
-        updated[updated.length - 1].t = 100;
+      if (updated[updated.length - 1].t !== 1) {
+        updated[updated.length - 1].t = 1;
         changed = true;
       }
     }
@@ -61,8 +65,8 @@ export default function CurveEditor({ points, onChange, height = 240 }: CurveEdi
     const x = clientX - rect.left;
     const y = clientY - rect.top;
 
-    const t = Math.max(0, Math.min(100, Math.round((x / rect.width) * 100)));
-    const energy = Math.max(0, Math.min(100, Math.round(100 - (y / rect.height) * 100)));
+    const t = clamp01(round2(x / rect.width));
+    const energy = clamp01(round2(1 - y / rect.height));
 
     return { t, energy };
   };
@@ -84,8 +88,8 @@ export default function CurveEditor({ points, onChange, height = 240 }: CurveEdi
 
     // X (t/time) can only drag between neighboring points to preserve ordering (except start and end points)
     if (draggedPointIndex > 0 && draggedPointIndex < points.length - 1) {
-      const minT = points[draggedPointIndex - 1].t + 1;
-      const maxT = points[draggedPointIndex + 1].t - 1;
+      const minT = points[draggedPointIndex - 1].t + 0.01;
+      const maxT = points[draggedPointIndex + 1].t - 0.01;
       updated[draggedPointIndex].t = Math.max(minT, Math.min(maxT, coords.t));
     }
 
@@ -101,7 +105,7 @@ export default function CurveEditor({ points, onChange, height = 240 }: CurveEdi
     if (!coords) return;
 
     // Check that we aren't clicking exactly on an existing point
-    const threshold = 3;
+    const threshold = 0.03;
     const isClose = points.some(p => Math.abs(p.t - coords.t) < threshold);
     if (isClose) return;
 
@@ -136,16 +140,16 @@ export default function CurveEditor({ points, onChange, height = 240 }: CurveEdi
     if (points.length === 0) return '';
     return points
       .map(p => {
-        const x = (p.t / 100) * svgWidth;
-        const y = (1 - p.energy / 100) * svgHeight;
+        const x = p.t * svgWidth;
+        const y = (1 - p.energy) * svgHeight;
         return `${x},${y}`;
       })
       .join(' ');
   };
 
   const pointsCoords = points.map(p => ({
-    x: (p.t / 100) * svgWidth,
-    y: (1 - p.energy / 100) * svgHeight,
+    x: p.t * svgWidth,
+    y: (1 - p.energy) * svgHeight,
     p
   }));
 

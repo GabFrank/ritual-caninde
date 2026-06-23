@@ -7,6 +7,7 @@ import {
   seedUserDataIfNeeded,
   fetchAttributes,
   createAttribute,
+  updateAttribute,
   deleteAttribute,
   fetchTracks,
   createTrack,
@@ -15,10 +16,13 @@ import {
   fetchTemplates,
   createTemplate,
   updateTemplate,
-  deleteTemplate
+  deleteTemplate,
+  saveSequence,
+  clearUserData
 } from './services/firebase';
+import { handleRedirectCallback } from './services/auth/oauthSessions';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { AttributeDefinition, Track, RitualTemplate } from './types';
+import { AttributeDefinition, Track, RitualTemplate, GeneratedSequence } from './types';
 import TrackDialog from './components/TrackDialog';
 import EmotionDialog from './components/EmotionDialog';
 import TemplateEditor from './components/TemplateEditor';
@@ -70,6 +74,12 @@ export default function App() {
   // UI state for filters/searching
   const [trackSearchQuery, setTrackSearchQuery] = useState('');
   const [trackProviderFilter, setTrackProviderFilter] = useState<'all' | 'spotify' | 'youtube' | 'local'>('all');
+
+  // 0. OAuth (Spotify/YouTube) redirect callback: si volvemos de /callback con ?code,
+  // canjea el token y limpia la URL. No bloquea el flujo de Firebase Auth.
+  useEffect(() => {
+    handleRedirectCallback().catch((err) => console.warn('OAuth callback:', err));
+  }, []);
 
   // 1. Auth Listener Connection
   useEffect(() => {
@@ -157,7 +167,7 @@ export default function App() {
           ...selectedTrackForEdit,
           ...trackFields
         };
-        await updateTrack(updated);
+        await updateTrack(user.uid, updated);
       } else {
         // Create
         await createTrack(user.uid, trackFields);
@@ -174,7 +184,7 @@ export default function App() {
     if (!user || !confirm("¿Seguro que deseas remover este tema de tu biblioteca ritual?")) return;
     setDbLoading(true);
     try {
-      await deleteTrack(id);
+      await deleteTrack(user.uid, id);
       await reloadAllUserData(user.uid);
     } catch (err) {
       console.error("Error deleting track:", err);
@@ -200,20 +210,31 @@ export default function App() {
     if (!user) return;
     setDbLoading(true);
     try {
-      await createAttribute(user.uid, emotionFields);
+      if (selectedEmotionForEdit) {
+        // Editar (incluye la paleta de fábrica, que es editable): preserva id/owner/builtIn.
+        const updated: AttributeDefinition = { ...selectedEmotionForEdit, ...emotionFields };
+        await updateAttribute(user.uid, updated);
+      } else {
+        await createAttribute(user.uid, emotionFields);
+      }
       await reloadAllUserData(user.uid);
     } catch (err) {
-      console.error("Error creating emotion:", err);
+      console.error("Error saving emotion:", err);
     } finally {
       setDbLoading(false);
     }
+  };
+
+  const handleOpenEmotionEdit = (attr: AttributeDefinition) => {
+    setSelectedEmotionForEdit(attr);
+    setIsEmotionDialogOpen(true);
   };
 
   const handleDeleteEmotion = async (id: string) => {
     if (!user || !confirm("¿Seguró que deseas eliminar completamente este descriptor emocional del altar?")) return;
     setDbLoading(true);
     try {
-      await deleteAttribute(id);
+      await deleteAttribute(user.uid, id);
       await reloadAllUserData(user.uid);
     } catch (err) {
       console.error("Error deleting emotion:", err);
@@ -230,7 +251,7 @@ export default function App() {
     setDbLoading(true);
     try {
       if (template.id) {
-        await updateTemplate(template);
+        await updateTemplate(user.uid, template);
       } else {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { id, ...templateFields } = template;
@@ -249,10 +270,32 @@ export default function App() {
     if (!user || !confirm("¿De verdad quieres borrar esta plantilla ceremonial? Esta acción no se puede deshacer.")) return;
     setDbLoading(true);
     try {
-      await deleteTemplate(id);
+      await deleteTemplate(user.uid, id);
       await reloadAllUserData(user.uid);
     } catch (err) {
       console.error("Error deleting template:", err);
+    } finally {
+      setDbLoading(false);
+    }
+  };
+
+  // Persistir un borrador generado (colección generatedSequences).
+  const handleSaveDraft = async (sequence: GeneratedSequence) => {
+    if (!user) return;
+    await saveSequence(user.uid, sequence);
+  };
+
+  // Limpiar y re-sembrar los datos de prueba (p. ej. tras migrar de escala).
+  const handleResetTestData = async () => {
+    if (!user || !confirm('Esto borra TODA tu biblioteca, paleta, plantillas y borradores, y vuelve a sembrar los datos de fábrica. ¿Continuar?')) return;
+    setDbLoading(true);
+    try {
+      await clearUserData(user.uid, true);
+      await reloadAllUserData(user.uid);
+      setEditingTemplate(null);
+      setActiveTemplateForPlayback(null);
+    } catch (err) {
+      console.error('Error reiniciando datos:', err);
     } finally {
       setDbLoading(false);
     }
@@ -264,14 +307,14 @@ export default function App() {
       name: '',
       totalDurationMs: 2 * 60 * 60 * 1000, // 2 Hours
       curve: [
-        { t: 0, energy: 20 },
-        { t: 50, energy: 60 },
-        { t: 100, energy: 20 }
+        { t: 0, energy: 0.2 },
+        { t: 0.5, energy: 0.6 },
+        { t: 1, energy: 0.2 }
       ],
       regions: [
-        { id: `reg-init`, name: "Espacio Inicial", startT: 0, endT: 40, targets: [] },
-        { id: `reg-climax`, name: "Climax Ceremonial", startT: 40, endT: 80, targets: [] },
-        { id: `reg-end`, name: "Integración", startT: 80, endT: 100, targets: [] }
+        { id: `reg-init`, name: "Espacio Inicial", startT: 0, endT: 0.4, targets: [] },
+        { id: `reg-climax`, name: "Climax Ceremonial", startT: 0.4, endT: 0.8, targets: [] },
+        { id: `reg-end`, name: "Integración", startT: 0.8, endT: 1, targets: [] }
       ],
       anchors: [],
       silences: [],
@@ -417,10 +460,12 @@ export default function App() {
     return (
       <div className="min-h-screen bg-[#07070a] text-zinc-100 p-6">
         <div className="max-w-7xl mx-auto">
-          <TimelineView 
+          <TimelineView
             template={activeTemplateForPlayback}
             tracks={tracks}
+            attributes={attributes}
             onBack={() => setActiveTemplateForPlayback(null)}
+            onSaveDraft={handleSaveDraft}
           />
         </div>
       </div>
@@ -689,18 +734,26 @@ export default function App() {
                         </span>
                       </div>
 
-                      {!attr.builtIn ? (
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                         <button
-                          onClick={() => handleDeleteEmotion(attr.id)}
-                          className="text-zinc-600 hover:text-red-400 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                          title="Eliminar dimensión propia"
-                          id={`delete-emotion-btn-${attr.id}`}
+                          onClick={() => handleOpenEmotionEdit(attr)}
+                          className="text-zinc-600 hover:text-violet-400 p-1 rounded"
+                          title={attr.builtIn ? 'Editar dimensión de fábrica' : 'Editar dimensión propia'}
+                          id={`edit-emotion-btn-${attr.id}`}
                         >
-                          <Trash2 size={12} />
+                          <Edit size={12} />
                         </button>
-                      ) : (
-                        <span className="text-[9px] text-zinc-650 font-mono tracking-wider uppercase font-semibold">Base</span>
-                      )}
+                        {!attr.builtIn && (
+                          <button
+                            onClick={() => handleDeleteEmotion(attr.id)}
+                            className="text-zinc-600 hover:text-red-400 p-1 rounded"
+                            title="Eliminar dimensión propia"
+                            id={`delete-emotion-btn-${attr.id}`}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -870,7 +923,17 @@ export default function App() {
       {/* 3. Global Dashboard Footer */}
       <footer className="border-t border-zinc-900 bg-[#060608] px-6 py-6" id="navigator-footer">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center text-xs text-zinc-500 gap-4">
-          <p>© 2026 Ritual Canindé - Orquestador y Guardián de Medicina Sagrada.</p>
+          <div className="flex items-center gap-3">
+            <p>© 2026 Ritual Canindé - Orquestador y Guardián de Medicina Sagrada.</p>
+            <button
+              onClick={handleResetTestData}
+              className="text-[10px] text-zinc-600 hover:text-red-400 border border-zinc-850 hover:border-red-950/50 rounded-full px-2 py-0.5 transition-colors cursor-pointer"
+              title="Borra y vuelve a sembrar los datos de fábrica"
+              id="reset-test-data-btn"
+            >
+              Reiniciar datos
+            </button>
+          </div>
           <div className="flex gap-4">
             <span className="flex items-center gap-1 text-[11px] text-zinc-400">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
