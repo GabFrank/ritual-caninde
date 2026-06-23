@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/GabFrank/ritual-caninde/compare/v1.0.0...v1.0.1) (2026-06-23)
+
+
+### Bug Fixes
+
+* desplegar a sitio Hosting dedicado ritual-caninde (no pisar el sitio default de franco-control) ([#3](https://github.com/GabFrank/ritual-caninde/issues/3)) ([530eee3](https://github.com/GabFrank/ritual-caninde/commit/530eee3c3a666eb9e9d8a4fe43ddbf751e45b444))
+
 # 1.0.0 (2026-06-23)
 
 
