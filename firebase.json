@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "ritual-caninde",
     "public": "dist",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "rewrites": [{ "source": "**", "destination": "/index.html" }],
