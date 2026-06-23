@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { RitualTemplate, Track, GeneratedSequence, SequenceElement } from '../types';
-import { generateSequence } from '../ritual-core';
+import { generateSequence } from '../services/legacyGenerator';
 import { 
   Play, 
   Pause, 
