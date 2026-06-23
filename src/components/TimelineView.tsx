@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { RitualTemplate, Track, GeneratedSequence, SequenceElement } from '../types';
-import { generateSequence } from '../services/legacyGenerator';
+import { RitualTemplate, Track, AttributeDefinition, GeneratedSequence, SequenceElement } from '../types';
+import { generateDraft } from '../services/coreMapping';
 import { 
   Play, 
   Pause, 
@@ -23,6 +23,7 @@ import {
 interface TimelineViewProps {
   template: RitualTemplate;
   tracks: Track[];
+  attributes: AttributeDefinition[];
   onBack: () => void;
 }
 
@@ -38,7 +39,7 @@ const formatMs = (ms: number): string => {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
-export default function TimelineView({ template, tracks, onBack }: TimelineViewProps) {
+export default function TimelineView({ template, tracks, attributes, onBack }: TimelineViewProps) {
   const [seed, setSeed] = useState(Math.floor(Math.random() * 9999));
   const [variability, setVariability] = useState(30); // 30%
   const [sequence, setSequence] = useState<GeneratedSequence | null>(null);
@@ -49,9 +50,9 @@ export default function TimelineView({ template, tracks, onBack }: TimelineViewP
   const [elapsedMs, setElapsedMs] = useState(0);
   const [userVolume, setUserVolume] = useState(80);
 
-  // Manual seed generator
+  // Manual seed generator — llama al motor real del núcleo (ritual-core/generate).
   const triggerGeneration = () => {
-    const generated = generateSequence(template, tracks, { seed, variability });
+    const generated = generateDraft(template, tracks, attributes, { seed, variability });
     setSequence(generated);
     setCurrentIndex(0);
     setElapsedMs(0);
@@ -61,7 +62,7 @@ export default function TimelineView({ template, tracks, onBack }: TimelineViewP
   // Generate automatically on template load
   useEffect(() => {
     triggerGeneration();
-  }, [template, tracks]);
+  }, [template, tracks, attributes]);
 
   // Simulated player timing ticks
   useEffect(() => {

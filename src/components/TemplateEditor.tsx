@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { RitualTemplate, AttributeDefinition, Track, Region, Anchor, Silence, CurvePoint } from '../types';
+import { validateAppTemplate } from '../services/coreMapping';
+import type { ValidationResult } from '../ritual-core';
 import CurveEditor from './CurveEditor';
 import { 
   ChevronLeft, 
@@ -40,6 +42,9 @@ export default function TemplateEditor({ template, attributes, tracks, onBack, o
   // State to expand/collapse regions or edit target sliders
   const [activeRegionId, setActiveRegionId] = useState<string | null>(regions[0]?.id || null);
 
+  // Resultado de la última validación del núcleo (errores bloquean; avisos no).
+  const [validation, setValidation] = useState<ValidationResult | null>(null);
+
   const handleSave = () => {
     if (!name.trim()) return;
 
@@ -59,6 +64,20 @@ export default function TemplateEditor({ template, attributes, tracks, onBack, o
         baseVolume: ambient.baseVolume
       }
     };
+
+    // Validación del núcleo ANTES de persistir (chequea refs: anclas→tracks, targets→atributos).
+    const result = validateAppTemplate(updatedTemplate, tracks, attributes);
+    setValidation(result);
+    if (!result.ok) return; // errores estructurales: no se guarda
+
+    if (result.warnings.length > 0) {
+      const proceed = confirm(
+        'La plantilla tiene avisos (no bloqueantes):\n\n- ' +
+          result.warnings.join('\n- ') +
+          '\n\n¿Guardar de todas formas?'
+      );
+      if (!proceed) return;
+    }
 
     onSave(updatedTemplate);
   };
@@ -203,6 +222,32 @@ export default function TemplateEditor({ template, attributes, tracks, onBack, o
           </button>
         </div>
       </div>
+
+      {/* PANEL DE VALIDACIÓN (núcleo): errores bloquean el guardado; avisos son sugerencias */}
+      {validation && (validation.errors.length > 0 || validation.warnings.length > 0) && (
+        <div className="space-y-3" id="template-validation-panel">
+          {validation.errors.length > 0 && (
+            <div className="p-4 bg-red-950/20 border border-red-900/40 rounded-xl text-[11px] text-red-300">
+              <span className="font-bold flex items-center gap-1.5 uppercase text-[9px] tracking-wider text-red-400 mb-1.5">
+                No se puede guardar — corrige estos errores:
+              </span>
+              <ul className="list-disc pl-4 space-y-1">
+                {validation.errors.map((e, i) => <li key={i}>{e}</li>)}
+              </ul>
+            </div>
+          )}
+          {validation.warnings.length > 0 && (
+            <div className="p-4 bg-yellow-950/20 border border-yellow-900/30 rounded-xl text-[11px] text-yellow-300">
+              <span className="font-bold flex items-center gap-1.5 uppercase text-[9px] tracking-wider text-yellow-400 mb-1.5">
+                Avisos del Copiloto (no bloqueantes):
+              </span>
+              <ul className="list-disc pl-4 space-y-1">
+                {validation.warnings.map((w, i) => <li key={i}>{w}</li>)}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" id="template-editor-grid">
         

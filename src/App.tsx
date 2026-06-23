@@ -157,7 +157,7 @@ export default function App() {
           ...selectedTrackForEdit,
           ...trackFields
         };
-        await updateTrack(updated);
+        await updateTrack(user.uid, updated);
       } else {
         // Create
         await createTrack(user.uid, trackFields);
@@ -174,7 +174,7 @@ export default function App() {
     if (!user || !confirm("¿Seguro que deseas remover este tema de tu biblioteca ritual?")) return;
     setDbLoading(true);
     try {
-      await deleteTrack(id);
+      await deleteTrack(user.uid, id);
       await reloadAllUserData(user.uid);
     } catch (err) {
       console.error("Error deleting track:", err);
@@ -213,7 +213,7 @@ export default function App() {
     if (!user || !confirm("¿Seguró que deseas eliminar completamente este descriptor emocional del altar?")) return;
     setDbLoading(true);
     try {
-      await deleteAttribute(id);
+      await deleteAttribute(user.uid, id);
       await reloadAllUserData(user.uid);
     } catch (err) {
       console.error("Error deleting emotion:", err);
@@ -230,7 +230,7 @@ export default function App() {
     setDbLoading(true);
     try {
       if (template.id) {
-        await updateTemplate(template);
+        await updateTemplate(user.uid, template);
       } else {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { id, ...templateFields } = template;
@@ -249,7 +249,7 @@ export default function App() {
     if (!user || !confirm("¿De verdad quieres borrar esta plantilla ceremonial? Esta acción no se puede deshacer.")) return;
     setDbLoading(true);
     try {
-      await deleteTemplate(id);
+      await deleteTemplate(user.uid, id);
       await reloadAllUserData(user.uid);
     } catch (err) {
       console.error("Error deleting template:", err);
@@ -417,9 +417,10 @@ export default function App() {
     return (
       <div className="min-h-screen bg-[#07070a] text-zinc-100 p-6">
         <div className="max-w-7xl mx-auto">
-          <TimelineView 
+          <TimelineView
             template={activeTemplateForPlayback}
             tracks={tracks}
+            attributes={attributes}
             onBack={() => setActiveTemplateForPlayback(null)}
           />
         </div>
