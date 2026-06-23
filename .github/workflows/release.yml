@@ -38,17 +38,20 @@ jobs:
         run: npm run lint
       - name: Test (vitest)
         run: npm test
+
+      - name: Semantic Release (version + changelog + GitHub release)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release
+
+      # El build va DESPUÉS del release para incrustar en el bundle la versión recién
+      # publicada (semantic-release actualiza package.json en disco durante su corrida).
       - name: Build
         run: npm run build
         env:
           VITE_SPOTIFY_CLIENT_ID: ${{ secrets.VITE_SPOTIFY_CLIENT_ID }}
           VITE_YOUTUBE_CLIENT_ID: ${{ secrets.VITE_YOUTUBE_CLIENT_ID }}
           VITE_OAUTH_REDIRECT_URI: ${{ secrets.VITE_OAUTH_REDIRECT_URI }}
-
-      - name: Semantic Release (version + changelog + GitHub release)
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release
 
       - name: Deploy to Firebase Hosting (live)
         if: ${{ env.FIREBASE_SERVICE_ACCOUNT != '' }}
@@ -58,3 +61,12 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           projectId: franco-control
           channelId: live
+
+      # Publica las reglas de Firestore en la base con nombre (ai-studio-...).
+      # Va después del hosting para no bloquearlo si faltara permiso en la cuenta de servicio.
+      - name: Deploy Firestore rules
+        if: ${{ env.FIREBASE_SERVICE_ACCOUNT != '' }}
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/gcp-sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/gcp-sa.json"
+          npx --yes firebase-tools deploy --only firestore:rules --project franco-control --non-interactive

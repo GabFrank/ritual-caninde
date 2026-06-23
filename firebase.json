@@ -1,4 +1,8 @@
 {
+  "firestore": {
+    "database": "ai-studio-44008411-4d7f-44ef-a0d8-414d9fdceb4e",
+    "rules": "firestore.rules"
+  },
   "hosting": {
     "site": "ritual-caninde",
     "public": "dist",

@@ -47,6 +47,8 @@ import {
   FolderLock
 } from 'lucide-react';
 
+const APP_VERSION = __APP_VERSION__;
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -375,7 +377,7 @@ export default function App() {
             <span className="font-display font-light text-xs tracking-[0.25em] uppercase text-white">Ritual <span className="font-bold">Canindé</span></span>
           </div>
           <span className="text-[9px] bg-zinc-900/80 text-zinc-500 font-mono border border-zinc-800/60 px-2 py-0.5 rounded-full uppercase tracking-wider">
-            Consola Facilitador v1.0
+            Consola Facilitador · v{APP_VERSION}
           </span>
         </header>
 
@@ -484,9 +486,12 @@ export default function App() {
           
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-violet-600 rounded-full blur-[2px] opacity-80 animate-pulse-gentle shrink-0"></div>
-            <h1 className="text-lg md:text-xl font-light tracking-widest uppercase text-white font-display">
-              Ritual <span className="font-bold">Canindé</span>
-            </h1>
+            <div className="flex flex-col leading-none">
+              <h1 className="text-lg md:text-xl font-light tracking-widest uppercase text-white font-display">
+                Ritual <span className="font-bold">Canindé</span>
+              </h1>
+              <span className="text-[9px] text-zinc-500 font-mono tracking-wider mt-1" id="app-version">v{APP_VERSION}</span>
+            </div>
           </div>
 
           {/* Navigation Controls (Flat typography links with border-b highlight as per design template) */}
