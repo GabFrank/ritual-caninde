@@ -170,9 +170,11 @@ export function describeKind(kind: SourceKind): string {
 export interface SourceMeta {
   title?: string;
   artist?: string;
+  /** Duración en ms cuando la fuente la expone (ej. Spotify Web API). */
+  durationMs?: number;
 }
 
-type FetchLike = (input: string) => Promise<Response>;
+type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
 /**
  * Best-effort: trae título/artista vía oEmbed público. Puede fallar por CORS o red;
@@ -198,5 +200,59 @@ export async function fetchSourceMeta(
     title: data.title,
     // YouTube expone el canal en author_name; Spotify no trae artista en oEmbed.
     artist: parsed.provider === 'youtube' ? data.author_name : undefined,
+  };
+}
+
+const SPOTIFY_API_PATH: Partial<Record<SourceKind, string>> = {
+  track: 'tracks',
+  album: 'albums',
+  playlist: 'playlists',
+  artist: 'artists',
+  episode: 'episodes',
+  show: 'shows',
+};
+
+interface SpotifyApiEntity {
+  name?: string;
+  duration_ms?: number;
+  artists?: Array<{ name?: string }>;
+  owner?: { display_name?: string };
+  publisher?: string;
+}
+
+/**
+ * Trae metadatos completos (título, artista y duración cuando aplica) desde la Web API
+ * de Spotify. Requiere un access token válido — usar `getAccessToken('spotify')`.
+ * Lanza si no hay token o la API falla; el llamador decide el fallback (p. ej. oEmbed).
+ */
+export async function fetchSpotifyMeta(
+  parsed: ParsedSource,
+  token: string,
+  fetchImpl?: FetchLike,
+): Promise<SourceMeta> {
+  if (parsed.provider !== 'spotify') throw new Error('fetchSpotifyMeta: la fuente no es de Spotify');
+  if (!token) throw new Error('fetchSpotifyMeta: falta el access token de Spotify');
+
+  const path = SPOTIFY_API_PATH[parsed.kind];
+  if (!path) throw new Error(`fetchSpotifyMeta: tipo no soportado (${parsed.kind})`);
+
+  const doFetch = fetchImpl ?? ((u, init) => (globalThis as { fetch: FetchLike }).fetch(u, init));
+  const res = await doFetch(`https://api.spotify.com/v1/${path}/${parsed.externalId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`Spotify API ${res.status}`);
+  const data = (await res.json()) as SpotifyApiEntity;
+
+  const artist =
+    (data.artists && data.artists.length
+      ? data.artists.map((a) => a.name).filter(Boolean).join(', ')
+      : undefined) ??
+    data.owner?.display_name ?? // playlists
+    data.publisher; // shows/podcasts
+
+  return {
+    title: data.name,
+    artist: artist || undefined,
+    durationMs: typeof data.duration_ms === 'number' ? data.duration_ms : undefined,
   };
 }

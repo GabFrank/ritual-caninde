@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseSourceUrl, fetchSourceMeta } from './sourceUrl';
+import { parseSourceUrl, fetchSourceMeta, fetchSpotifyMeta } from './sourceUrl';
 
 describe('parseSourceUrl - Spotify', () => {
   it('álbum con parámetro si', () => {
@@ -89,5 +89,44 @@ describe('fetchSourceMeta (best-effort)', () => {
     const parsed = parseSourceUrl('https://youtu.be/n1_Y96yUTtA')!;
     const fakeFetch = async () => new Response('', { status: 404 });
     await expect(fetchSourceMeta(parsed, fakeFetch as any)).rejects.toThrow();
+  });
+});
+
+describe('fetchSpotifyMeta (Web API)', () => {
+  it('track: junta artistas y trae duración', async () => {
+    const parsed = parseSourceUrl('https://open.spotify.com/track/4xSg7A0123456789ABCDEF')!;
+    const fakeFetch = async (url: string, init?: RequestInit) => {
+      expect(url).toContain('/v1/tracks/4xSg7A0123456789ABCDEF');
+      expect((init?.headers as any).Authorization).toBe('Bearer tok123');
+      return new Response(
+        JSON.stringify({ name: 'Icaro', duration_ms: 510000, artists: [{ name: 'Danit' }, { name: 'Ayla' }] }),
+        { status: 200 },
+      );
+    };
+    const meta = await fetchSpotifyMeta(parsed, 'tok123', fakeFetch as any);
+    expect(meta).toEqual({ title: 'Icaro', artist: 'Danit, Ayla', durationMs: 510000 });
+  });
+
+  it('álbum: usa artistas, sin duración', async () => {
+    const parsed = parseSourceUrl('https://open.spotify.com/album/6ee6iLY45OVLY13OgMXeDZ')!;
+    const fakeFetch = async () =>
+      new Response(JSON.stringify({ name: 'Medicine', artists: [{ name: 'Danit' }] }), { status: 200 });
+    const meta = await fetchSpotifyMeta(parsed, 'tok', fakeFetch as any);
+    expect(meta).toEqual({ title: 'Medicine', artist: 'Danit', durationMs: undefined });
+  });
+
+  it('playlist: cae al display_name del dueño', async () => {
+    const parsed = parseSourceUrl('spotify:playlist:37i9dQZF1DX')!;
+    const fakeFetch = async () =>
+      new Response(JSON.stringify({ name: 'Ceremonia', owner: { display_name: 'Gabriel' } }), { status: 200 });
+    const meta = await fetchSpotifyMeta(parsed, 'tok', fakeFetch as any);
+    expect(meta).toMatchObject({ title: 'Ceremonia', artist: 'Gabriel' });
+  });
+
+  it('falla sin token o si la API responde error', async () => {
+    const parsed = parseSourceUrl('https://open.spotify.com/track/4xSg7A0123456789ABCDEF')!;
+    await expect(fetchSpotifyMeta(parsed, '', (async () => new Response('', { status: 200 })) as any)).rejects.toThrow();
+    const err = async () => new Response('', { status: 401 });
+    await expect(fetchSpotifyMeta(parsed, 'tok', err as any)).rejects.toThrow();
   });
 });
