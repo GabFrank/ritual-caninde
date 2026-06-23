@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/GabFrank/ritual-caninde/compare/v1.0.1...v1.1.0) (2026-06-23)
+
+
+### Features
+
+* **biblioteca:** detectar plataforma e ID desde un enlace pegado ([#4](https://github.com/GabFrank/ritual-caninde/issues/4)) ([6cb3693](https://github.com/GabFrank/ritual-caninde/commit/6cb3693d8b494a9849703dc494ae714354137bce))
+
 ## [1.0.1](https://github.com/GabFrank/ritual-caninde/compare/v1.0.0...v1.0.1) (2026-06-23)
 
 
