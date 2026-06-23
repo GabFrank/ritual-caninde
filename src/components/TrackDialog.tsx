@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Track, AttributeDefinition, TrackTag } from '../types';
 import { X, Music, AlertTriangle, Link2, CheckCircle2, Loader2 } from 'lucide-react';
-import { parseSourceUrl, fetchSourceMeta, describeKind, type ParsedSource } from '../services/sourceUrl';
+import { parseSourceUrl, fetchSourceMeta, fetchSpotifyMeta, describeKind, type ParsedSource, type SourceMeta } from '../services/sourceUrl';
+import { getAccessToken } from '../services/auth/oauthSessions';
 
 interface TrackDialogProps {
   isOpen: boolean;
@@ -96,7 +97,15 @@ export default function TrackDialog({ isOpen, onClose, attributes, onSave, track
 
   if (!isOpen) return null;
 
-  // Pegar URL → detecta plataforma + ID y, best-effort, autocompleta título/artista.
+  // Aplica metadatos sin pisar lo que el usuario ya escribió.
+  const applyMeta = (meta: SourceMeta) => {
+    if (meta.title) setTitle((prev) => prev.trim() || meta.title!.trim());
+    if (meta.artist) setArtist((prev) => prev.trim() || meta.artist!.trim());
+    // La duración sólo se autocompleta si sigue en el valor por defecto.
+    if (meta.durationMs) setDurationString((prev) => (prev === '5:00' ? msToMSS(meta.durationMs!) : prev));
+  };
+
+  // Pegar URL → detecta plataforma + ID y, best-effort, autocompleta título/artista/duración.
   const handleUrlChange = (value: string) => {
     setUrlInput(value);
     setUrlTouched(value.trim().length > 0);
@@ -108,16 +117,23 @@ export default function TrackDialog({ isOpen, onClose, attributes, onSave, track
     setExternalId(result.externalId);
     setSourceUri(result.uri);
 
-    // Metadatos opcionales vía oEmbed (puede fallar por CORS): no bloquea nada.
     setFetchingMeta(true);
-    fetchSourceMeta(result)
-      .then((meta) => {
-        // Sólo rellena campos que el usuario aún no escribió.
-        setTitle((prev) => prev.trim() || meta.title?.trim() || prev);
-        if (meta.artist) setArtist((prev) => prev.trim() || meta.artist!.trim());
-      })
-      .catch(() => { /* sin metadatos: quedan plataforma + ID */ })
-      .finally(() => setFetchingMeta(false));
+    (async () => {
+      // Spotify: si hay sesión, la Web API trae artista + duración. Si no, oEmbed (sólo título).
+      if (result.provider === 'spotify') {
+        const token = await getAccessToken('spotify').catch(() => null);
+        if (token) {
+          try {
+            applyMeta(await fetchSpotifyMeta(result, token));
+            return;
+          } catch { /* cae al oEmbed */ }
+        }
+      }
+      // oEmbed público (YouTube: título + canal; Spotify sin sesión: sólo título).
+      try {
+        applyMeta(await fetchSourceMeta(result));
+      } catch { /* sin metadatos: quedan plataforma + ID */ }
+    })().finally(() => setFetchingMeta(false));
   };
 
   const handleTagChange = (defId: string, value: string | number | boolean) => {
