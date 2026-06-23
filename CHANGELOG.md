@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/GabFrank/ritual-caninde/compare/v1.2.1...v1.3.0) (2026-06-23)
+
+
+### Features
+
+* versión en UI + fix deploy de reglas Firestore (guardado) ([#8](https://github.com/GabFrank/ritual-caninde/issues/8)) ([5b27547](https://github.com/GabFrank/ritual-caninde/commit/5b27547276c83b1cc1d8bd404ef3572e7abfa7ac))
+
 ## [1.2.1](https://github.com/GabFrank/ritual-caninde/compare/v1.2.0...v1.2.1) (2026-06-23)
 
 
