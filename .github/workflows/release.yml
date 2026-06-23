@@ -62,11 +62,42 @@ jobs:
           projectId: franco-control
           channelId: live
 
-      # Publica las reglas de Firestore en la base con nombre (ai-studio-...).
-      # Va después del hosting para no bloquearlo si faltara permiso en la cuenta de servicio.
-      - name: Deploy Firestore rules
+      # Publica las reglas de Firestore en la BASE CON NOMBRE (ai-studio-...) vía la API REST
+      # de Firebase Rules. firebase-tools ignora el campo `database` y publica en (default);
+      # acá apuntamos explícitamente al release `cloud.firestore/<database>`.
+      - name: Deploy Firestore rules (named DB)
         if: ${{ env.FIREBASE_SERVICE_ACCOUNT != '' }}
+        env:
+          PROJECT: franco-control
+          DB: ai-studio-44008411-4d7f-44ef-a0d8-414d9fdceb4e
         run: |
-          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/gcp-sa.json"
-          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/gcp-sa.json"
-          npx --yes firebase-tools deploy --only firestore:rules --project franco-control --non-interactive
+          set -euo pipefail
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json" --quiet
+          TOKEN=$(gcloud auth print-access-token)
+          API="https://firebaserules.googleapis.com/v1/projects/$PROJECT"
+
+          # 1) Crear un ruleset desde firestore.rules
+          CONTENT=$(jq -Rs . < firestore.rules)
+          RS=$(curl -fsS -X POST "$API/rulesets" \
+            -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+            -d "{\"source\":{\"files\":[{\"name\":\"firestore.rules\",\"content\":$CONTENT}]}}")
+          RS_NAME=$(echo "$RS" | jq -r .name)
+          echo "Ruleset creado: $RS_NAME"
+
+          # 2) Apuntar el release de la base con nombre a ese ruleset
+          REL="cloud.firestore/$DB"
+          REL_ENC="cloud.firestore%2F$DB"
+          BODY="{\"release\":{\"name\":\"projects/$PROJECT/releases/$REL\",\"rulesetName\":\"$RS_NAME\"}}"
+          CODE=$(curl -s -o "$RUNNER_TEMP/rel.json" -w "%{http_code}" -X PATCH \
+            "$API/releases/$REL_ENC" \
+            -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d "$BODY")
+          echo "PATCH release -> HTTP $CODE"; cat "$RUNNER_TEMP/rel.json"; echo
+          if [ "$CODE" != "200" ]; then
+            echo "PATCH no aplicó; intentando crear el release..."
+            curl -fsS -X POST "$API/releases" \
+              -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+              -d "{\"name\":\"projects/$PROJECT/releases/$REL\",\"rulesetName\":\"$RS_NAME\"}"
+            echo
+          fi
+          echo "Reglas publicadas en la base $DB"
