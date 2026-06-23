@@ -69,7 +69,7 @@ export default function EmotionDialog({ isOpen, onClose, onSave, attribute }: Em
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" id="emotion-dialog-container">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85" id="emotion-dialog-container">
       <div className="w-full max-w-md border bg-zinc-900 border-zinc-800 rounded-xl p-6 shadow-2xl relative" id="emotion-dialog">
         <button 
           onClick={onClose} 

@@ -226,10 +226,6 @@ export default function CurveEditor({ points, onChange, height = 240 }: CurveEdi
               <stop offset="50%" stopColor="#ec4899" />
               <stop offset="100%" stopColor="#3b82f6" />
             </linearGradient>
-            <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="6" result="blur" />
-              <feComposite in="SourceGraphic" in2="blur" operator="over" />
-            </filter>
           </defs>
 
           {/* Area under curve */}
@@ -242,7 +238,6 @@ export default function CurveEditor({ points, onChange, height = 240 }: CurveEdi
               fill="none"
               stroke="url(#lineGrad)"
               strokeWidth="4"
-              filter="url(#glow)"
               strokeLinecap="round"
             />
           )}
