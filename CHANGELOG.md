@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/GabFrank/ritual-caninde/compare/v1.1.0...v1.2.0) (2026-06-23)
+
+
+### Features
+
+* **biblioteca:** autocompletar artista y duración de Spotify vía Web API ([#5](https://github.com/GabFrank/ritual-caninde/issues/5)) ([71291f3](https://github.com/GabFrank/ritual-caninde/commit/71291f3508e4a18ee3c98a9e4384bc804825ce02))
+
 # [1.1.0](https://github.com/GabFrank/ritual-caninde/compare/v1.0.1...v1.1.0) (2026-06-23)
 
 
