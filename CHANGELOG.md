@@ -1,3 +1,10 @@
+## [1.3.3](https://github.com/GabFrank/ritual-caninde/compare/v1.3.2...v1.3.3) (2026-06-23)
+
+
+### Bug Fixes
+
+* **ci:** publicar reglas a la base con nombre vía API REST de Firebase Rules ([#11](https://github.com/GabFrank/ritual-caninde/issues/11)) ([42eba71](https://github.com/GabFrank/ritual-caninde/commit/42eba71290984caf5d29c81ea2c910714fc7384c))
+
 ## [1.3.2](https://github.com/GabFrank/ritual-caninde/compare/v1.3.1...v1.3.2) (2026-06-23)
 
 
