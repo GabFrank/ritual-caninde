@@ -1,29 +1,12 @@
 rules_version = '2';
 
-// Reglas de seguridad de Ritual Canindé — patrón canónico por dueño.
-//
-// Cada documento lleva `ownerId == user.uid`. Un usuario sólo lee/escribe lo suyo.
-// Se evita envolver la condición de propiedad en funciones y combinarla con otras
-// condiciones: para queries (list), Firestore necesita ver `resource.data.ownerId ==
-// request.auth.uid` de forma directa para reconocer que la consulta es segura.
-//
-// La app usa una base Firestore con id custom (ai-studio-...); estas reglas se publican
-// sobre esa base vía la API REST de Firebase Rules (ver release.yml).
+// ⚠️ DIAGNÓSTICO TEMPORAL — exige únicamente estar autenticado (no chequea dueño).
+// Sirve para aislar si `request.auth` llega a Firestore. Se restaura a las reglas por
+// dueño en cuanto se confirme la causa. Aplica sólo a la base de Ritual (ai-studio-44008411).
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{collection}/{docId} {
-      allow read: if request.auth != null
-        && resource.data.ownerId == request.auth.uid;
-
-      allow create: if request.auth != null
-        && request.resource.data.ownerId == request.auth.uid;
-
-      allow update: if request.auth != null
-        && resource.data.ownerId == request.auth.uid
-        && request.resource.data.ownerId == request.auth.uid;
-
-      allow delete: if request.auth != null
-        && resource.data.ownerId == request.auth.uid;
+    match /{document=**} {
+      allow read, write: if request.auth != null;
     }
   }
 }
