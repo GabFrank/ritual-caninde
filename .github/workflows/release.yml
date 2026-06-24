@@ -101,3 +101,19 @@ jobs:
             echo
           fi
           echo "Reglas publicadas en la base $DB"
+
+          # 3) Verificación (solo lectura): qué bases existen, qué releases hay, y qué
+          #    reglas aplica realmente la base con nombre.
+          echo "===== DIAGNÓSTICO (solo lectura) ====="
+          echo "--- Bases de datos del proyecto ---"
+          curl -fsS "https://firestore.googleapis.com/v1/projects/$PROJECT/databases" \
+            -H "Authorization: Bearer $TOKEN" | jq -r '.databases[]?.name' || true
+          echo "--- Releases de reglas ---"
+          curl -fsS "$API/releases" -H "Authorization: Bearer $TOKEN" \
+            | jq -r '.releases[]? | "\(.name) -> \(.rulesetName)"' || true
+          echo "--- Reglas ACTIVAS en la base $DB ---"
+          ENF=$(curl -fsS "$API/releases/$REL_ENC" -H "Authorization: Bearer $TOKEN" | jq -r .rulesetName)
+          echo "ruleset activo: $ENF"
+          curl -fsS "https://firebaserules.googleapis.com/v1/$ENF" \
+            -H "Authorization: Bearer $TOKEN" | jq -r '.source.files[]?.content' || true
+          echo "===== FIN DIAGNÓSTICO ====="
