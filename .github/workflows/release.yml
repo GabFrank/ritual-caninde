@@ -102,8 +102,8 @@ jobs:
           fi
           echo "Reglas publicadas en la base $DB"
 
-          # 3) Verificación (solo lectura): qué bases existen, qué releases hay, y qué
-          #    reglas aplica realmente la base con nombre.
+          # 3) Verificación (solo lectura). No debe hacer fallar el deploy.
+          set +e
           echo "===== DIAGNÓSTICO (solo lectura) ====="
           echo "--- Bases de datos del proyecto ---"
           curl -fsS "https://firestore.googleapis.com/v1/projects/$PROJECT/databases" \
