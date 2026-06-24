@@ -49,6 +49,12 @@ import {
 
 const APP_VERSION = __APP_VERSION__;
 
+// Diagnóstico: arma un texto legible con el código real del error (Firestore, etc.).
+function describeError(err: any): string {
+  const code = err?.code ? `[${err.code}] ` : '';
+  return `${code}${err?.message ?? String(err)}`;
+}
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -97,6 +103,7 @@ export default function App() {
           await reloadAllUserData(authUser.uid);
         } catch (err) {
           console.error("Error setting up client workspace:", err);
+          alert("No se pudo cargar/guardar en la nube: " + describeError(err));
         } finally {
           setDbLoading(false);
         }
@@ -177,6 +184,7 @@ export default function App() {
       await reloadAllUserData(user.uid);
     } catch (err) {
       console.error("Error saving track:", err);
+      alert("No se pudo guardar el tema: " + describeError(err));
     } finally {
       setDbLoading(false);
     }
@@ -222,6 +230,7 @@ export default function App() {
       await reloadAllUserData(user.uid);
     } catch (err) {
       console.error("Error saving emotion:", err);
+      alert("No se pudo guardar la emoción: " + describeError(err));
     } finally {
       setDbLoading(false);
     }
