@@ -1,3 +1,10 @@
+## [1.3.4](https://github.com/GabFrank/ritual-caninde/compare/v1.3.3...v1.3.4) (2026-06-24)
+
+
+### Bug Fixes
+
+* **firestore:** reglas por dueño en patrón canónico (arregla permission-denied en list) ([#13](https://github.com/GabFrank/ritual-caninde/issues/13)) ([467a5f1](https://github.com/GabFrank/ritual-caninde/commit/467a5f15a56189a337806faeecb02fc2cfa436eb))
+
 ## [1.3.3](https://github.com/GabFrank/ritual-caninde/compare/v1.3.2...v1.3.3) (2026-06-23)
 
 
